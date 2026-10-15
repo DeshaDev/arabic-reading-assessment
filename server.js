@@ -50,9 +50,11 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Nebras Arabic Reading Assessment Prototype',
-    version: '1.2.0',
+    version: '1.3.0',
     mode: 'prototype',
     automaticSpeechAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY),
+    wordLevelGazeSummaryEnabled: true,
+    independentCalibrationValidationEnabled: true,
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
