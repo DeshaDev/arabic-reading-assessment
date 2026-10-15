@@ -32,6 +32,7 @@ class ParentReportGenerator {
     const reasons = Array.isArray(risk.reasons) ? risk.reasons : [];
     const segments = Array.isArray(s.readingSegments) ? s.readingSegments : [];
     const readingAnalyses = Array.isArray(s.readingAnalyses) ? s.readingAnalyses : [];
+    const gazeCalibration = s.gazeCalibration && typeof s.gazeCalibration === 'object' ? s.gazeCalibration : null;
     const reasonsHtml = reasons.length
       ? reasons.map(function (reason) { return '<li>' + safe(reason) + '</li>'; }).join('')
       : '<li>راجع مدة القراءة وإجابات الفهم وجودة الإشارة مع المعلم.</li>';
@@ -56,13 +57,38 @@ class ParentReportGenerator {
     html += '<div class="metric-card"><div class="metric-title">عينات النظر</div><div class="metric-val">' + (gazeAvailable ? safe(m.totalFixations || 0) + ' تثبيت' : 'غير متاحة') + '</div><div class="metric-desc">' + (gazeAvailable ? 'قياس تقديري عبر كاميرا الجهاز' : 'إشارة غير كافية أو معايرة غير مكتملة') + '</div></div>';
     html += '<div class="metric-card"><div class="metric-title">حالة القياس</div><div class="metric-val">' + safe(qualityLabel) + '</div><div class="metric-desc">لا توجد درجة خطر أو تشخيص</div></div></div></section>';
 
+    if (gazeCalibration) {
+      html += '<section class="report-section"><h3 class="section-title">التحقق التقني لمعايرة النظر</h3><div class="summary-card"><p><strong>النتيجة:</strong> ' +
+        (gazeCalibration.passed === true ? 'اجتازت نقاط التحقق الحد الهندسي الداخلي' : 'لم تجتز نقاط التحقق أو كانت عينات التحقق غير كافية') +
+        '.</p><p>نقاط صالحة: ' + (Number(gazeCalibration.validTargetCount) || 0) + ' / ' +
+        (Number(gazeCalibration.validationTargetCount) || 0) + ' · الخطأ الوسيط المقدر: ' +
+        (gazeCalibration.medianErrorPx == null ? 'غير متاح' : (Number(gazeCalibration.medianErrorPx) || 0) + ' بكسل') +
+        ' · الحد الداخلي: ' + (Number(gazeCalibration.tolerancePx) || 0) + ' بكسل.</p>' +
+        '<p>هذا فحص جودة هندسي أولي على شاشة الجهاز وليس معيار دقة معتمدًا علميًا أو مقياسًا تشخيصيًا.</p></div></section>';
+    }
+
     html += '<section class="report-section"><h3 class="section-title">تفاصيل مهام القراءة</h3><div class="recommendations-list">';
     html += '<div class="rec-card"><div class="rec-num">R</div><div><h4>تسمية الحروف</h4><p>الزمن: ' + (s.ranDurationSeconds == null ? 'غير مسجل' : safe(s.ranDurationSeconds) + ' ثانية') + ' · أخطاء رصدها المعلم: ' + (Number(s.ranErrors) || 0) + '.</p></div></div>';
     if (segments.length) {
       html += segments.map(function (segment, index) {
         const mode = segment.mode === 'oral' ? 'جهرية' : 'صامتة';
         const segmentWpm = typeof window !== 'undefined' && window.ReadingAssessmentProtocol ? window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) : null;
-        return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · سرعة المقطع: ' + (segmentWpm == null ? 'غير متاحة' : segmentWpm + ' كلمة/دقيقة') + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'توجد عينات كافية مبدئيًا' : 'غير متاحة أو غير كافية') + '.</p></div></div>';
+        const wordGaze = segment.wordGaze || {};
+        const topWordDwells = (Array.isArray(wordGaze.perWord) ? wordGaze.perWord : [])
+          .slice().sort(function (a, b) { return Number(b.totalDwellMs || 0) - Number(a.totalDwellMs || 0); }).slice(0, 5);
+        const topWordDwellsHtml = topWordDwells.length
+          ? '<ul>' + topWordDwells.map(function (item) {
+            return '<li>' + safe(item.wordText || ('الكلمة رقم ' + (Number(item.wordIndex) + 1))) +
+              ' · زمن نظر تراكمي ' + (Number(item.totalDwellMs) || 0) + ' ms · مرات رصد مستقرة ' + (Number(item.visitCount) || 0) + '.</li>';
+          }).join('') + '</ul>'
+          : '';
+        const wordGazeHtml = wordGaze.quality === 'observed'
+          ? '<p><strong>مناطق كلمات رُصدت فيها إشارة النظر:</strong> ' + (Number(wordGaze.uniqueWordsSeen) || 0) + ' من ' +
+            (Number(wordGaze.targetWordCount) || 0) + ' كلمة (' + (Number(wordGaze.wordCoveragePercent) || 0) + '% تغطية) · عينات أُسندت إلى كلمة ' +
+            (Number(wordGaze.sampleCoveragePercent) || 0) + '% · انتقالات إلى كلمات سابقة ' + (Number(wordGaze.regressions) || 0) + '.</p>' +
+            topWordDwellsHtml + '<p class="text-muted">زمن النظر والمناطق المرصودة لا يثبتان وحدهما حدوث خطأ قراءة أو فهم.</p>'
+          : '<p>لا توجد تغطية كافية لربط النظر بالكلمات في هذا المقطع.</p>';
+        return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · سرعة المقطع: ' + (segmentWpm == null ? 'غير متاحة' : segmentWpm + ' كلمة/دقيقة') + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'اجتازت المعايرة تحققًا تقنيًا أوليًا مع عينات مبدئية' : 'غير متاحة أو غير كافية') + '.</p>' + wordGazeHtml + '</div></div>';
       }).join('');
     } else {
       html += '<p class="text-muted">هذه جلسة قديمة لا تتضمن تفاصيل المقاطع.</p>';
