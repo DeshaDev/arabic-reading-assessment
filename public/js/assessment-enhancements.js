@@ -84,11 +84,11 @@
     const height = window.innerHeight;
     // These validation locations are deliberately different from the five training points.
     const points = [
-      { name: 'وسط أعلى الشاشة', x: 0.50, y: 0.36 },
-      { name: 'منتصف اليمين', x: 0.72, y: 0.50 },
-      { name: 'وسط أسفل الشاشة', x: 0.50, y: 0.64 },
-      { name: 'منتصف اليسار', x: 0.28, y: 0.50 },
-      { name: 'المنتصف', x: 0.50, y: 0.50 }
+      { name: 'أعلى اليسار الداخلي', x: 0.32, y: 0.34 },
+      { name: 'أعلى اليمين الداخلي', x: 0.68, y: 0.34 },
+      { name: 'أسفل اليسار الداخلي', x: 0.32, y: 0.66 },
+      { name: 'أسفل اليمين الداخلي', x: 0.68, y: 0.66 },
+      { name: 'أعلى الوسط', x: 0.50, y: 0.42 }
     ].map(point => ({
       name: point.name,
       x: Math.round(width * point.x),
@@ -184,7 +184,7 @@
     }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
-    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة نفسها وانقرها ثلاث مرات في كل نقطة. سيأخذ المتتبع عينات متباعدة أثناء بقائك ناظرًا إليها، ثم يختبر دقته على نقاط مستقلة دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 9 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
+    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button><div class="calib-instructions"><h3>معايرة اتجاه النظر · 9 نقاط</h3><p>انظر إلى النجمة نفسها وانقرها ثلاث مرات في كل نقطة. النقطة الحمراء هي تقدير النموذج لاتجاه النظر؛ حاول إبقاءها قريبة من النجمة. سيختبر النظام الدقة على نقاط مستقلة دون نقر قبل تفعيل تتبع الكلمات.</p><p id="calib-step-hint">النقطة 1 من 9 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div><div class="calib-prediction-dot" id="calib-prediction-dot" aria-hidden="true"></div></div>';
     this.tracker.resetCalibration();
     const points = [
       { name: 'المركز', x: 0.50, y: 0.50 },
@@ -263,7 +263,13 @@
     this.calibrationCompleted = validationPassed;
     if (!validationPassed) {
       const validation = this.calibrationValidation || {};
-      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم يجتز التتبع التحقق التقني</h2><p>لن نعرض الكلمة التي ينظر إليها الطالب قبل اجتياز فحص الدقة. راجع إضاءة الوجه، ثبّت الشاشة، انظر إلى كل نجمة أثناء النقر، ثم أعد المحاولة.</p><div class="diagnostic-alert-banner"><strong>نتيجة الفحص:</strong> عينات صالحة في ' + (validation.validTargetCount || 0) + ' من ' + (validation.validationTargetCount || 5) + ' نقاط · الخطأ الوسيط المقدر: ' + (validation.medianErrorPx == null ? 'لم تُنتج العينات تقديرًا' : validation.medianErrorPx + ' بكسل') + ' · الحد الداخلي التجريبي: ' + (validation.tolerancePx || '—') + ' بكسل.</div><p class="text-muted">هذا فحص هندسي أولي وليس اختبارًا سريريًا. لا تدخل الجلسة وضع تتبع الكلمات حتى تجتاز المعايرة.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button></div></div>';
+      const validationDetailItems = (this.calibrationMeasurements || []).map(item =>
+        '<li>' + this.escapeHtml(item.name) + ': ' + (Number(item.sampleCount) || 0) + ' عينة · ' +
+        (item.errorPx == null ? 'لا يوجد تقدير نظر' : 'خطأ مقدر ' + item.errorPx + ' بكسل') + '</li>'
+      ).join('');
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم يجتز التتبع التحقق التقني</h2><p>لن نعرض الكلمة التي ينظر إليها الطالب قبل اجتياز فحص الدقة. راجع إضاءة الوجه، ثبّت الشاشة، انظر إلى كل نجمة أثناء النقر، ثم أعد المحاولة.</p><div class="diagnostic-alert-banner"><strong>نتيجة الفحص:</strong> عينات صالحة في ' + (validation.validTargetCount || 0) + ' من ' + (validation.validationTargetCount || 5) + ' نقاط · الخطأ الوسيط المقدر: ' + (validation.medianErrorPx == null ? 'لم تُنتج العينات تقديرًا' : validation.medianErrorPx + ' بكسل') + ' · الحد الداخلي التجريبي: ' + (validation.tolerancePx || '—') + ' بكسل.</div>' +
+        (validationDetailItems ? '<details class="calibration-measurement-details"><summary>تفاصيل النقاط الخمس</summary><ul>' + validationDetailItems + '</ul></details>' : '') +
+        '<p class="text-muted">هذا فحص هندسي أولي وليس اختبارًا سريريًا. لا تدخل الجلسة وضع تتبع الكلمات حتى تجتاز المعايرة.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button></div></div>';
       const failedIndicator = document.getElementById('ind-calibration');
       if (failedIndicator) failedIndicator.innerHTML = '<span class="dot"></span>إشارة النظر: غير كافية';
       return;
