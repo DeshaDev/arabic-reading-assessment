@@ -608,6 +608,7 @@
       viewportWidth: document.getElementById('reading-wrapper')?.clientWidth || window.innerWidth,
       viewportHeight: document.getElementById('reading-wrapper')?.clientHeight || 360,
       audioUrl: audio && audio.url ? audio.url : null,
+      audioMimeType: audio && audio.mimeType ? audio.mimeType : null,
       audioOffsetSeconds: Number.isFinite(this.audioCaptureStartPerf[index])
         ? Math.max(0, (this.segmentStartedAt - this.audioCaptureStartPerf[index]) / 1000)
         : 0
@@ -840,7 +841,7 @@
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors, omissions: segment.omissions,
       selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze, metrics: segment.metrics,
       viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, wordGaze: segment.wordGaze,
-      acousticAnalysis: segment.acousticAnalysis, audioUrl: segment.audioUrl, audioOffsetSeconds: segment.audioOffsetSeconds,
+      acousticAnalysis: segment.acousticAnalysis, audioUrl: segment.audioUrl, audioMimeType: segment.audioMimeType, audioOffsetSeconds: segment.audioOffsetSeconds,
       gazeSamples: segment.gazeSamples, index: index
     }));
     payload.metrics = combinedMetrics;
@@ -859,8 +860,9 @@
     const safe = this.escapeHtml.bind(this);
     const segmentCards = segments.map((segment, index) => {
       const speed = window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds);
+      const audioExtension = String(segment.audioMimeType || '').toLowerCase().includes('mp4') ? 'm4a' : 'webm';
       const audio = segment.audioUrl
-        ? '<audio id="oral-audio-player-' + index + '" controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">التسجيل محلي مؤقتًا. لا يُرسل إلى مزوّد التفريغ إلا بعد الموافقة الصريحة والضغط على زر التحليل.</p>'
+        ? '<audio id="oral-audio-player-' + index + '" controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><div class="audio-download-row"><a class="btn btn-sm btn-outline" href="' + segment.audioUrl + '" download="nebras-reading-' + (index + 1) + '.' + audioExtension + '">تنزيل ملف التسجيل الصوتي</a><span class="text-muted">الملف محفوظ مؤقتًا في هذه الجلسة؛ نزّله قبل مغادرة الصفحة.</span></div>'
         : '';
       const analysisControls = segment.audioUrl && segment.mode === 'oral'
         ? (window.NEBRAS_DEMO_MODE
