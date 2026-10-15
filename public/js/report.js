@@ -145,12 +145,20 @@ class ParentReportGenerator {
               ? '<p>موضع الكلمة في التسجيل: ' + formatStamp(timed.startSeconds) + '–' + formatStamp(timed.endSeconds) + '.</p>'
               : '<p>توقيت الكلمة غير متاح لأن محركي التفريغ لم يتفقا عليها.</p>';
             const gazeHtml = gazeTime && gazeTime.quality === 'observed'
-              ? '<p>إشارة النظر المقدّرة أثناء النطق: ' + (Number(gazeTime.gazeSampleCount) || 0) + ' عينة، و' +
-                (Number(gazeTime.mappedGazeSampleCount) || 0) + ' عينة مرتبطة بمناطق كلمات. نسبة العينات المرتبطة بالكلمة المستهدفة: ' +
-                (gazeTime.targetWordGazePercent == null ? 'غير متاحة' : Number(gazeTime.targetWordGazePercent) + '%') + '.</p>'
+              ? (operation.type === 'insertion'
+                ? '<p>إشارة النظر المقدّرة أثناء موضع الإضافة: ' + (Number(gazeTime.gazeSampleCount) || 0) + ' عينة، و' +
+                  (Number(gazeTime.mappedGazeSampleCount) || 0) + ' عينة مرتبطة بمناطق كلمات. لا توجد كلمة مرجعية عند هذا الحد لحساب نسبة نظر إلى كلمة مستهدفة.</p>'
+                : '<p>إشارة النظر المقدّرة أثناء النطق: ' + (Number(gazeTime.gazeSampleCount) || 0) + ' عينة، و' +
+                  (Number(gazeTime.mappedGazeSampleCount) || 0) + ' عينة مرتبطة بمناطق كلمات. نسبة العينات المرتبطة بالكلمة المستهدفة: ' +
+                  (gazeTime.targetWordGazePercent == null ? 'غير متاحة' : Number(gazeTime.targetWordGazePercent) + '%') + '.</p>')
               : '<p>لم تتوفر عينات نظر متزامنة كافية لهذه اللحظة الصوتية.</p>';
-            return '<li><strong>' + safe(typeLabels[operation.type] || 'فرق محتمل') + ':</strong> النص ' +
-              safe(operation.targetWord || '—') + ' · التفريغ ' + safe(operation.spokenWord || 'لم يظهر') +
+            const targetLabel = operation.type === 'insertion'
+              ? 'موضع الإضافة: ' + (operation.boundaryAfterWord
+                ? 'بعد «' + safe(operation.boundaryAfterWord) + '»'
+                : operation.boundaryBeforeWord ? 'قبل «' + safe(operation.boundaryBeforeWord) + '»' : 'بداية النص')
+              : 'النص: ' + safe(operation.targetWord || '—');
+            return '<li><strong>' + safe(typeLabels[operation.type] || 'فرق محتمل') + ':</strong> ' +
+              targetLabel + ' · التفريغ ' + safe(operation.spokenWord || 'لم يظهر') +
               timingHtml + gazeHtml + '</li>';
           }).join('') + '</ul>'
           : '<p>لم يرصد التطابق النصي اختلافًا واضحًا في التفريغ؛ هذا لا يثبت خلو القراءة من الأخطاء.</p>';
