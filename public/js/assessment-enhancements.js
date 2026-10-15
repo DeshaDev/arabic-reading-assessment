@@ -938,7 +938,6 @@
     const samples = Array.isArray(segment && segment.gazeSamples) ? segment.gazeSamples : [];
     const timestamps = Array.isArray(wordTimestamps) ? wordTimestamps : [];
     const operations = alignment && Array.isArray(alignment.operations) ? alignment.operations : [];
-    const offsetMs = Math.max(0, Number(segment && segment.audioOffsetSeconds) || 0) * 1000;
     return operations.filter(operation => operation.type !== 'match').slice(0, 80).map(operation => {
       const operationTranscriptIndex = operation.transcriptIndex == null ? null : Number(operation.transcriptIndex);
       const timestamp = operationTranscriptIndex === null ? null : timestamps.find(item =>
@@ -948,10 +947,11 @@
         Number.isFinite(Number(item.endSeconds)) &&
         Number(item.endSeconds) > Number(item.startSeconds)
       );
+      const targetIndex = operation.targetIndex == null ? null : Number(operation.targetIndex);
       const base = {
         type: operation.type,
-        targetIndex: Number.isInteger(Number(operation.targetIndex)) ? Number(operation.targetIndex) : null,
-        transcriptIndex: operation.transcriptIndex != null && Number.isInteger(Number(operation.transcriptIndex)) ? Number(operation.transcriptIndex) : null,
+        targetIndex: targetIndex != null && Number.isInteger(targetIndex) ? targetIndex : null,
+        transcriptIndex: operationTranscriptIndex != null && Number.isInteger(operationTranscriptIndex) ? operationTranscriptIndex : null,
         timingAvailable: false,
         quality: 'insufficient',
         audioStartSeconds: null,
@@ -967,41 +967,15 @@
       base.timingAvailable = true;
       base.audioStartSeconds = Math.round(Number(timestamp.startSeconds) * 1000) / 1000;
       base.audioEndSeconds = Math.round(Number(timestamp.endSeconds) * 1000) / 1000;
-      const startMs = Number(timestamp.startSeconds) * 1000 - offsetMs;
-      const endMs = Number(timestamp.endSeconds) * 1000 - offsetMs;
-      if (endMs <= 0 || endMs <= startMs) return base;
-      const inWindow = samples.filter(sample => {
-        const t = Number(sample && sample.segmentT);
-        return Number.isFinite(t) && t >= Math.max(0, startMs) && t <= endMs;
-      });
-      base.gazeSampleCount = inWindow.length;
-      const mapped = inWindow.filter(sample => sample.wordIndex != null &&
-        Number.isInteger(Number(sample.wordIndex)) &&
-        Number(sample.wordIndex) >= 0 && Number(sample.wordIndex) < Number(segment.wordCount || 0));
-      base.mappedGazeSampleCount = mapped.length;
-      const targetIndex = Number(operation.targetIndex);
-      base.targetWordSampleCount = mapped.filter(sample => Number(sample.wordIndex) === targetIndex).length;
-      base.targetWordGazePercent = mapped.length
-        ? Math.round(base.targetWordSampleCount / mapped.length * 1000) / 10
-        : null;
-      const counts = new Map();
-      mapped.forEach(sample => {
-        const wordIndex = Number(sample.wordIndex);
-        counts.set(wordIndex, (counts.get(wordIndex) || 0) + 1);
-      });
-      let dominant = null;
-      let dominantCount = 0;
-      counts.forEach((count, wordIndex) => {
-        if (count > dominantCount) {
-          dominant = wordIndex;
-          dominantCount = count;
-        }
-      });
-      base.dominantGazeWordIndex = dominant;
-      base.dominantGazeWordSharePercent = mapped.length
-        ? Math.round(dominantCount / mapped.length * 1000) / 10
-        : null;
-      base.quality = inWindow.length >= 3 && mapped.length >= 2 ? 'observed' : 'insufficient';
+      const summary = window.ReadingAssessmentProtocol.summarizeGazeDuringSpeechInterval(
+        samples,
+        Number(segment && segment.wordCount) || 0,
+        base.targetIndex,
+        timestamp.startSeconds,
+        timestamp.endSeconds,
+        Number(segment && segment.audioOffsetSeconds) || 0
+      );
+      Object.assign(base, summary);
       return base;
     });
   };
