@@ -43,7 +43,7 @@ test('skipping calibration opens the first reading passage directly and flags ga
 });
 
 test('successful calibration proceeds to the reading passage without an unrelated extra step', () => {
-  assert.match(enhancementSource, /startReading\('oral', 0\)">ابدأ القراءة مع تتبع النظر/);
+  assert.match(enhancementSource, /startReading\(&quot;oral&quot;, 0\)">ابدأ القراءة مع تتبع النظر/);
   assert.doesNotMatch(enhancementSource, /اجتازت إشارة النظر التحقق التقني الأولي[\s\S]{0,900}startRapidNaming\(\)/);
 });
 
