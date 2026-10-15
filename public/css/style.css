@@ -1125,3 +1125,5 @@ a { color: inherit; }
   align-self: flex-start;
   margin-top: 3px;
 }
+
+.asr-timestamp-summary small { display: block; margin-top: 5px; color: #6d7d74; font-size: 9px; line-height: 1.8; }
