@@ -402,6 +402,7 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
       language: 'ar',
       alignment: alignment,
       timestampModel: timestampModel,
+      timedWords: timedWords,
       timedAlignment: timedAlignment,
       timestampWarning: timestampWarning,
       crossModelWordErrorRate: crossModelWordErrorRate,
@@ -425,6 +426,7 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
   const referenceText = typeof body.referenceText === 'string' ? body.referenceText.trim() : '';
   const model = typeof body.model === 'string' ? body.model.slice(0, 100) : 'unknown';
   const timestampModel = typeof body.timestampModel === 'string' ? body.timestampModel.slice(0, 100) : null;
+  const timestampWarning = typeof body.timestampWarning === 'string' ? body.timestampWarning.slice(0, 500) : null;
   const timedWords = Array.isArray(body.timedWords) ? body.timedWords.slice(0, 1200).map(item => ({
     word: item && typeof item.word === 'string' ? item.word.slice(0, 80) : '',
     start: Number(item && item.start),
@@ -466,6 +468,7 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
     transcript: transcript,
     model: model,
     timestampModel: timedAlignment ? timestampModel : null,
+    timestampWarning: timestampWarning,
     analyzedAt: new Date().toISOString(),
     alignment: alignment,
     timedAlignment: timedAlignment,
