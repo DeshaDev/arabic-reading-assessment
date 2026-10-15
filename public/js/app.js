@@ -233,6 +233,19 @@ class AppRouter {
         </div>
       </div>
     `;
+    const page = container.querySelector('.texts-bank-page');
+    const alternateSection = document.createElement('section');
+    alternateSection.className = 'dashboard-section';
+    alternateSection.innerHTML = '<div class="section-head"><div><h2>نصوص بديلة للجلسة الثانية</h2><p>مقاطع مختلفة حتى لا يقرأ الطالب القصة نفسها مرتين. جميعها نصوص تجريبية تحتاج إلى مراجعة تربوية مستقلة.</p></div></div>';
+    const alternateGrid = document.createElement('div');
+    alternateGrid.className = 'texts-grid';
+    alternateGrid.innerHTML = (window.ARABIC_ALTERNATE_TEXTS || []).map(function (t) {
+      return '<article class="text-card"><div class="text-card-header"><span class="badge-grade">الصف ' + t.grade + '</span><span class="badge-info">النص الثاني</span></div>' +
+        '<h3>' + t.title + '</h3><p class="text-desc">مقطع بديل تجريبي · ' + t.comprehensionQuestions.length + ' أسئلة فهم</p>' +
+        '<div class="text-preview-box">' + t.content + '</div><div class="text-meta-footer"><span>القراءة الثانية ضمن بروتوكول الجلسة</span></div></article>';
+    }).join('');
+    alternateSection.appendChild(alternateGrid);
+    page.appendChild(alternateSection);
   }
 }
 
