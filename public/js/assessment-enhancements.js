@@ -53,17 +53,14 @@
 
   proto.renderGazeTargetText = function (content) {
     const source = String(content || '');
-    const wordPattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
+    const tokens = window.ReadingAssessmentProtocol.tokenizeArabicWords(source);
     let html = '';
     let lastIndex = 0;
-    let wordIndex = 0;
-    let match;
-    while ((match = wordPattern.exec(source)) !== null) {
-      html += this.escapeHtml(source.slice(lastIndex, match.index));
-      html += '<span class="gaze-word-target" data-gaze-word-index="' + wordIndex + '">' + this.escapeHtml(match[0]) + '</span>';
-      wordIndex++;
-      lastIndex = wordPattern.lastIndex;
-    }
+    tokens.forEach(token => {
+      html += this.escapeHtml(source.slice(lastIndex, token.start));
+      html += '<span class="gaze-word-target" data-gaze-word-index="' + token.index + '">' + this.escapeHtml(token.word) + '</span>';
+      lastIndex = token.end;
+    });
     html += this.escapeHtml(source.slice(lastIndex));
     return html;
   };
@@ -587,14 +584,17 @@
     if (!segment) return this.renderComprehension(passageIndex);
     this.selectedTeacherMarkType = this.selectedTeacherMarkType || 'substitution';
     const container = document.getElementById('assessment-container');
-    const tokens = String(segment.content || '').match(/\n|[^\s]+/g) || [];
-    let wordIndex = 0;
-    const tokenMarkup = tokens.map(token => {
-      if (token === '\n') return '<br>';
-      const currentIndex = wordIndex++;
-      return '<button type="button" class="markable-word" data-word-index="' + currentIndex + '" aria-label="تحديد ملاحظة على كلمة ' + this.escapeHtml(token) + '">' +
-        this.escapeHtml(token) + '</button>';
-    }).join('');
+    const markSource = String(segment.content || '');
+    const markTokens = window.ReadingAssessmentProtocol.tokenizeArabicWords(markSource);
+    let tokenMarkup = '';
+    let lastTextIndex = 0;
+    markTokens.forEach(token => {
+      tokenMarkup += this.escapeHtml(markSource.slice(lastTextIndex, token.start));
+      tokenMarkup += '<button type="button" class="markable-word" data-word-index="' + token.index + '" aria-label="تحديد ملاحظة على كلمة ' +
+        this.escapeHtml(token.word) + '">' + this.escapeHtml(token.word) + '</button>';
+      lastTextIndex = token.end;
+    });
+    tokenMarkup += this.escapeHtml(markSource.slice(lastTextIndex));
     container.innerHTML = '<div class="assessment-card fade-in"><div class="step-indicator">مراجعة قراءة المقطع ' + (passageIndex + 1) + ' من 2 · ملاحظات المعلم</div>' +
       '<h2>علّم الكلمات التي لاحظت فيها تعثرًا</h2><p>هذه المراجعة اليدوية اختيارية وتكمل التحليل الآلي للتفريغ الصوتي المتاح في شاشة النتائج. اختر نوع الملاحظة ثم انقر الكلمة؛ قد يخطئ التفريغ في فهم الطفل، لذلك لا تُعد أي علامة آلية خطأ قراءة مؤكدًا.</p>' +
       '<div class="teacher-mark-toolbar"><span>نوع الملاحظة:</span>' +
