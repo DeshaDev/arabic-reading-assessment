@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { alignReadingTranscript } = require('./public/js/reading-alignment');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -49,8 +50,10 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Nebras Arabic Reading Assessment Prototype',
-    version: '1.1.0',
+    version: '1.2.0',
     mode: 'prototype',
+    automaticSpeechAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY),
+    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -242,6 +245,164 @@ app.post('/api/sessions', (req, res) => {
   student.riskLevel = 'none'; // No clinical risk level is assigned by this prototype.
   writeDatabase(db);
   res.status(201).json(session);
+});
+
+// Automatic oral-reading analysis. Audio is held in memory and forwarded only on explicit request.
+const transcriptionRequests = new Map();
+const allowedAudioTypes = new Set([
+  'audio/webm', 'audio/mp4', 'audio/wav', 'audio/x-wav', 'audio/ogg',
+  'audio/mpeg', 'audio/mp3', 'audio/flac', 'audio/x-m4a', 'audio/m4a'
+]);
+const audioBodyParser = express.raw({
+  type: req => Boolean(req.is('audio/*') || req.is('video/webm')),
+  limit: '20mb'
+});
+
+app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({
+      error: 'التحليل الآلي غير مفعّل على الخادم. اضبط متغير البيئة OPENAI_API_KEY ثم أعد تشغيله.'
+    });
+  }
+
+  const now = Date.now();
+  const requester = req.ip || req.socket.remoteAddress || 'unknown';
+  const windowState = transcriptionRequests.get(requester);
+  if (!windowState || now - windowState.startedAt > 60_000) {
+    transcriptionRequests.set(requester, { startedAt: now, count: 1 });
+  } else {
+    windowState.count++;
+    if (windowState.count > 8) {
+      return res.status(429).json({ error: 'تم بلوغ حد طلبات التحليل المؤقت. انتظر دقيقة ثم أعد المحاولة.' });
+    }
+  }
+  if (transcriptionRequests.size > 1000) {
+    for (const [ip, value] of transcriptionRequests) {
+      if (now - value.startedAt > 60_000) transcriptionRequests.delete(ip);
+    }
+  }
+
+  if (!Buffer.isBuffer(req.body) || req.body.length < 1024) {
+    return res.status(400).json({ error: 'ملف الصوت فارغ أو قصير جدًا للتحليل.' });
+  }
+  if (req.body.length > 20 * 1024 * 1024) {
+    return res.status(413).json({ error: 'حجم التسجيل يتجاوز 20 ميغابايت.' });
+  }
+
+  const requestedType = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (!allowedAudioTypes.has(requestedType)) {
+    return res.status(415).json({ error: 'صيغة الصوت غير مدعومة. سجّل بصيغة WebM أو MP4 أو WAV أو OGG.' });
+  }
+
+  const encodedReference = String(req.headers['x-reading-text-base64'] || '');
+  if (!encodedReference || encodedReference.length > 16000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encodedReference)) {
+    return res.status(400).json({ error: 'تعذر قراءة النص المرجعي للمقطع.' });
+  }
+  const referenceText = Buffer.from(encodedReference, 'base64').toString('utf8').trim();
+  if (!referenceText || referenceText.length > 12000) {
+    return res.status(400).json({ error: 'النص المرجعي فارغ أو يتجاوز الحد المسموح.' });
+  }
+
+  const extensionByType = {
+    'audio/webm': 'webm', 'audio/mp4': 'mp4', 'audio/wav': 'wav', 'audio/x-wav': 'wav',
+    'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/flac': 'flac',
+    'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a'
+  };
+  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe';
+
+  try {
+    const form = new FormData();
+    form.append('file', new Blob([req.body], { type: requestedType }), 'reading.' + extensionByType[requestedType]);
+    form.append('model', model);
+    form.append('language', 'ar');
+    form.append('response_format', 'json');
+
+    const providerResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY },
+      body: form,
+      signal: AbortSignal.timeout(120_000)
+    });
+    const providerBody = await providerResponse.json().catch(() => ({}));
+    if (!providerResponse.ok) {
+      console.error('Speech transcription provider returned status', providerResponse.status);
+      if (providerResponse.status === 429) {
+        return res.status(503).json({ error: 'خدمة التفريغ مشغولة أو وصلت إلى حد الاستخدام. حاول لاحقًا.' });
+      }
+      return res.status(502).json({ error: 'تعذر تفريغ الصوت من مزوّد الخدمة. تحقق من إعداداته وصيغة التسجيل.' });
+    }
+    const transcript = typeof providerBody.text === 'string' ? providerBody.text.trim() : '';
+    if (!transcript) return res.status(422).json({ error: 'لم يُرجع محرك التفريغ نصًا يمكن مراجعته.' });
+
+    let alignment;
+    try {
+      alignment = alignReadingTranscript(referenceText, transcript);
+    } catch (error) {
+      return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ مع النص.' });
+    }
+
+    return res.json({
+      transcript: transcript,
+      model: model,
+      language: 'ar',
+      alignment: alignment,
+      caveat: 'هذه مقارنة آلية بين النص المرجعي وتفريغ الكلام؛ قد تكون الفروق ناتجة عن خطأ التعرف الصوتي، ويجب مراجعتها مع التسجيل والمعلم.'
+    });
+  } catch (error) {
+    const timedOut = error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+    if (timedOut) return res.status(504).json({ error: 'استغرق التفريغ وقتًا أطول من الحد المسموح. أعد المحاولة بتسجيل أقصر.' });
+    console.error('Speech transcription request failed:', error && error.message ? error.message : 'unknown error');
+    return res.status(502).json({ error: 'تعذر الاتصال بخدمة التفريغ الصوتي.' });
+  }
+});
+
+// Store transcript and alignment only (never audio bytes) so reviewed results are available in history.
+app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const passageIndex = Number(body.passageIndex);
+  const passageId = typeof body.passageId === 'string' ? body.passageId : '';
+  const transcript = typeof body.transcript === 'string' ? body.transcript.trim() : '';
+  const referenceText = typeof body.referenceText === 'string' ? body.referenceText.trim() : '';
+  const model = typeof body.model === 'string' ? body.model.slice(0, 100) : 'unknown';
+
+  if (![0, 1].includes(passageIndex) || !passageId) {
+    return res.status(400).json({ error: 'بيانات المقطع غير صالحة.' });
+  }
+  if (!transcript || transcript.length > 12000 || !referenceText || referenceText.length > 12000) {
+    return res.status(400).json({ error: 'التفريغ أو النص المرجعي فارغ أو طويل جدًا.' });
+  }
+
+  const db = readDatabase();
+  const session = db.sessions.find(item => item.id === req.params.id);
+  if (!session) return res.status(404).json({ error: 'الجلسة غير موجودة؛ لم يتم تخزين التحليل.' });
+  const expectedId = passageIndex === 0 ? session.textId : session.secondTextId;
+  if (!expectedId || expectedId !== passageId) {
+    return res.status(409).json({ error: 'المقطع لا يطابق المقطع المسجل في هذه الجلسة.' });
+  }
+
+  let alignment;
+  try {
+    alignment = alignReadingTranscript(referenceText, transcript);
+  } catch (error) {
+    return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ.' });
+  }
+  const readingAnalysis = {
+    passageIndex: passageIndex,
+    passageId: passageId,
+    passageTitle: passageIndex === 0 ? session.textTitle : session.secondTextTitle,
+    transcript: transcript,
+    model: model,
+    analyzedAt: new Date().toISOString(),
+    alignment: alignment,
+    note: 'مقارنة أولية بين التفريغ الآلي والنص المرجعي؛ قد تمثل بعض الفروق أخطاء تعرف صوتي ولا تُعد أخطاء قراءة مؤكدة.'
+  };
+  if (!Array.isArray(session.readingAnalyses)) session.readingAnalyses = [];
+  session.readingAnalyses = session.readingAnalyses.filter(item => item.passageId !== passageId);
+  session.readingAnalyses.push(readingAnalysis);
+  writeDatabase(db);
+  return res.json({ readingAnalysis: readingAnalysis });
 });
 
 app.get('/api/stats', (req, res) => {
