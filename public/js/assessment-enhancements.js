@@ -534,14 +534,22 @@
     const risk = session.riskClassification || {};
     const segments = session.visualSegments || [];
     const safe = this.escapeHtml.bind(this);
-    const segmentCards = segments.map((segment, index) =>
-      '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
-      (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
-      '<div class="reading-summary-stats"><div><span>المدة</span><strong>' + this.formatProtocolDuration(segment.durationSeconds) +
-      '</strong></div><div><span>سرعة المقطع</span><strong>' + (window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) === null ? 'غير متاحة' : window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) + ' ك/د') + '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء مسجلة</span><strong>' +
-      segment.errors + '</strong></div><div><span>إشارة النظر</span><strong>' + (segment.hasValidGaze ? 'عينات مبدئية' : 'غير كافية') + '</strong></div></div>' +
-      (segment.audioUrl ? '<audio controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">الصوت مؤقت في هذه الجلسة فقط، ولم يُرسل إلى الخادم.</p>' : '') + '</article>'
-    ).join('');
+    const segmentCards = segments.map((segment, index) => {
+      const speed = window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds);
+      const audio = segment.audioUrl
+        ? '<audio controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">التسجيل محلي مؤقتًا. لا يُرسل إلى مزوّد التفريغ إلا بعد الموافقة الصريحة والضغط على زر التحليل.</p>'
+        : '';
+      const analysisControls = segment.audioUrl && segment.mode === 'oral'
+        ? '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في سجل نَبراس المحلي، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>'
+        : '';
+      return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
+        (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
+        '<div class="reading-summary-stats"><div><span>المدة</span><strong>' + this.formatProtocolDuration(segment.durationSeconds) +
+        '</strong></div><div><span>سرعة المقطع</span><strong>' + (speed === null ? 'غير متاحة' : speed + ' ك/د') +
+        '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء المعلم</span><strong>' +
+        segment.errors + '</strong></div><div><span>إشارة النظر</span><strong>' + (segment.hasValidGaze ? 'عينات مبدئية' : 'غير كافية') +
+        '</strong></div></div>' + audio + analysisControls + '</article>';
+    }).join('');
     const visualButtons = segments.map((segment, index) => '<button class="btn btn-sm ' + (index === 0 ? 'active' : '') +
       '" id="visual-segment-' + index + '" onclick="window.assessmentManager.selectVisualSegment(' + index + ')">' + (index + 1) + '. ' + safe(segment.passageTitle) + '</button>').join('');
     const saveMessage = session.saveError
@@ -576,6 +584,136 @@
     canvas.height = wrapper.clientHeight;
     this.analysisVisualizer = new GazeVisualizer(canvas);
     this.selectVisualSegment(0);
+  };
+
+  proto.setAudioAnalysisConsent = function (index, accepted) {
+    const button = document.getElementById('asr-run-' + index);
+    if (button && !button.dataset.busy) button.disabled = accepted !== true;
+  };
+
+  proto.renderAutomatedReadingAnalysis = function (index, analysis) {
+    const output = document.getElementById('asr-output-' + index);
+    if (!output || !analysis) return;
+    const alignment = analysis.alignment || {};
+    const counts = alignment.counts || {};
+    const safe = this.escapeHtml.bind(this);
+    const labels = {
+      substitution: 'اختلاف / استبدال محتمل',
+      deletion: 'كلمة من النص لم تظهر في التفريغ',
+      insertion: 'كلمة إضافية في التفريغ',
+      repetition: 'تكرار محتمل في التفريغ'
+    };
+    const differences = (alignment.operations || []).filter(item => item.type !== 'match').slice(0, 80);
+    const differenceMarkup = differences.length
+      ? '<ul class="asr-difference-list">' + differences.map(item =>
+        '<li class="asr-difference asr-' + safe(item.type) + '"><strong>' + safe(labels[item.type] || 'فرق محتمل') +
+        '</strong><span>النص: ' + safe(item.targetWord || '—') + '</span><span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span></li>'
+      ).join('') + '</ul>'
+      : '<p class="asr-no-differences">لم يرصد التطابق النصي اختلافًا واضحًا. هذا لا يثبت خلو القراءة من الأخطاء؛ فقد يصحح محرك التفريغ بعض الكلمات تلقائيًا.</p>';
+    const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
+    output.innerHTML = '<div class="asr-result-heading"><span class="badge-info">اقتراح آلي · يحتاج مراجعة</span><strong>' + safe(analysis.passageTitle || 'تحليل القراءة الجهرية') + '</strong></div>' +
+      '<h4>النص الذي تعرّف عليه محرك الصوت</h4><blockquote class="asr-transcript" dir="rtl">' + safe(analysis.transcript || '') + '</blockquote>' +
+      '<div class="asr-count-grid"><div><span>استبدال</span><strong>' + (Number(counts.substitutions) || 0) + '</strong></div><div><span>حذف محتمل</span><strong>' +
+      (Number(counts.deletions) || 0) + '</strong></div><div><span>إضافة</span><strong>' + (Number(counts.insertions) || 0) + '</strong></div><div><span>تكرار</span><strong>' +
+      (Number(counts.repetitions) || 0) + '</strong></div><div><span>فرق التفريغ التقريبي</span><strong>' + rate + '</strong></div></div>' +
+      '<h4>الفروق المحتملة عن النص المستهدف</h4>' + differenceMarkup +
+      '<p class="asr-caveat">' + safe(analysis.note || analysis.caveat || 'قد تكون بعض الفروق ناتجة عن التعرف الصوتي، أو اللفظ، أو اللهجة، أو التشكيل؛ راجع التسجيل يدويًا.') + '</p>';
+  };
+
+  proto.analyzeRecordedPassage = async function (index) {
+    const segment = this.lastSession && this.lastSession.visualSegments && this.lastSession.visualSegments[index];
+    const record = this.audioRecords && this.audioRecords[index];
+    const consent = document.getElementById('asr-consent-' + index);
+    const button = document.getElementById('asr-run-' + index);
+    const output = document.getElementById('asr-output-' + index);
+    if (!segment || segment.mode !== 'oral' || !record || !record.blob) {
+      if (output) output.textContent = 'لا يوجد تسجيل صوتي محلي لهذا المقطع. أعد الجلسة مع تفعيل التسجيل الاختياري.';
+      return;
+    }
+    if (!consent || !consent.checked) {
+      if (output) output.textContent = 'اقرأ موافقة الإرسال أولًا قبل بدء التحليل.';
+      return;
+    }
+    if (button && button.dataset.busy === 'true') return;
+    if (button) {
+      button.dataset.busy = 'true';
+      button.disabled = true;
+      button.textContent = 'جارٍ تفريغ الصوت ومقارنته…';
+    }
+    if (output) output.textContent = 'يُرسل التسجيل الآن إلى خدمة التفريغ المهيأة. لن يُحفظ ملف الصوت في قاعدة بيانات نَبراس.';
+    try {
+      const bytes = new TextEncoder().encode(segment.content || '');
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const referenceBase64 = btoa(binary);
+      const response = await fetch('/api/analyze-reading', {
+        method: 'POST',
+        headers: {
+          'Content-Type': record.blob.type || 'audio/webm',
+          'X-Reading-Text-Base64': referenceBase64
+        },
+        body: record.blob
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'تعذر إكمال تحليل القراءة.');
+      let analysis = {
+        passageIndex: index,
+        passageId: segment.passageId,
+        passageTitle: segment.passageTitle,
+        transcript: data.transcript,
+        model: data.model,
+        analyzedAt: new Date().toISOString(),
+        alignment: data.alignment,
+        note: data.caveat
+      };
+      if (this.lastSession && Array.isArray(this.lastSession.readingAnalyses)) {
+        this.lastSession.readingAnalyses = this.lastSession.readingAnalyses.filter(item => item.passageId !== segment.passageId);
+      } else if (this.lastSession) {
+        this.lastSession.readingAnalyses = [];
+      }
+
+      if (this.lastSession && this.lastSession.id && !this.lastSession.saveError) {
+        try {
+          const savedResponse = await fetch('/api/sessions/' + encodeURIComponent(this.lastSession.id) + '/reading-analysis', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({
+              passageIndex: index,
+              passageId: segment.passageId,
+              referenceText: segment.content,
+              transcript: data.transcript,
+              model: data.model
+            })
+          });
+          const savedData = await savedResponse.json().catch(() => ({}));
+          if (savedResponse.ok && savedData.readingAnalysis) {
+            analysis = savedData.readingAnalysis;
+            await window.dashboardModule.loadData();
+          } else {
+            analysis.note = (analysis.note || '') + ' لم يُحفظ هذا التحليل في سجل الجلسة: ' + (savedData.error || 'خطأ تخزين.');
+          }
+        } catch (_) {
+          analysis.note = (analysis.note || '') + ' تعذر حفظ التحليل في سجل الجلسة؛ النتيجة ما زالت متاحة في هذه الصفحة.';
+        }
+      } else {
+        analysis.note = (analysis.note || '') + ' لم تُحفظ الجلسة السابقة على الخادم، لذا لم يُحفظ التحليل في السجل.';
+      }
+      if (this.lastSession) {
+        this.lastSession.readingAnalyses = (this.lastSession.readingAnalyses || []).filter(item => item.passageId !== segment.passageId);
+        this.lastSession.readingAnalyses.push(analysis);
+        segment.analysis = analysis;
+      }
+      this.renderAutomatedReadingAnalysis(index, analysis);
+      if (button) button.textContent = 'إعادة التحليل';
+    } catch (error) {
+      if (output) output.innerHTML = '<p class="asr-error">' + this.escapeHtml(error.message || 'تعذر إكمال التحليل.') + '</p>';
+      if (button) button.textContent = 'إعادة المحاولة';
+    } finally {
+      if (button) {
+        button.dataset.busy = 'false';
+        button.disabled = !(consent && consent.checked);
+      }
+    }
   };
 
   proto.selectVisualSegment = function (index) {
