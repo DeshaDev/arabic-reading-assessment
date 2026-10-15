@@ -36,6 +36,27 @@ test('finds likely substitution, deletion and repeated-word differences in Arabi
   assert.ok(result.operations.some(op => op.type === 'substitution' && op.targetWord === 'البيت' && op.spokenWord === 'المنزل'));
 });
 
+test('represents insertions as consistent boundaries before, between, and after reference words', () => {
+  const before = alignReadingTranscript('ذهب سامي', 'ثم ذهب سامي').operations.find(op => op.type === 'insertion');
+  assert.equal(before.targetIndex, 0);
+  assert.equal(before.targetWord, null);
+  assert.equal(before.boundaryBeforeWord, 'ذهب');
+  assert.equal(before.boundaryAfterWord, null);
+
+  const middle = alignReadingTranscript('ذهب سامي المدرسة', 'ذهب ثم سامي المدرسة').operations.find(op => op.type === 'insertion');
+  assert.equal(middle.targetIndex, 1);
+  assert.equal(middle.boundaryAfterWord, 'ذهب');
+  assert.equal(middle.boundaryBeforeWord, 'سامي');
+
+  const after = alignReadingTranscript('ذهب سامي', 'ذهب سامي الآن').operations.find(op => op.type === 'insertion');
+  assert.equal(after.targetIndex, 2);
+  assert.equal(after.boundaryAfterWord, 'سامي');
+  assert.equal(after.boundaryBeforeWord, null);
+
+  const noReference = alignReadingTranscript('', 'كلام زائد');
+  assert.ok(noReference.operations.every(op => op.type === 'insertion' && op.targetIndex === 0));
+});
+
 test('normalizes Arabic diacritics and alif variation for matching', () => {
   const result = alignReadingTranscript('أَكَلَ الطِّفْلُ', 'اكل الطفل');
   assert.equal(result.counts.matches, 2);
