@@ -182,8 +182,17 @@ app.post('/api/sessions', (req, res) => {
     const mode = source.mode === 'oral' || source.mode === 'silent' ? source.mode : 'silent';
     const segmentMetrics = source.metrics && typeof source.metrics === 'object' ? source.metrics : {};
     const wordCount = clampInt(source.wordCount, 2000);
+    const segmentDurationSeconds = optionalSeconds(source.durationSeconds) || 0;
+    const gazeValidForSegment = source.hasValidGaze === true &&
+      safeGazeCalibration !== null && safeGazeCalibration.passed === true &&
+      segmentDurationSeconds >= 10 && clampInt(segmentMetrics.totalFixations, 10000) >= 2;
     const gazeSource = source.wordGaze && typeof source.wordGaze === 'object' ? source.wordGaze : {};
     const gazeSampleCount = clampInt(gazeSource.sampleCount, 1000000);
+    const inTextSampleCount = Math.min(gazeSampleCount, clampInt(gazeSource.inTextSamples, 1000000));
+    const seenWordCount = Math.min(wordCount, clampInt(gazeSource.uniqueWordsSeen, 2000));
+    const wordGazeQuality = gazeValidForSegment && wordCount > 0 &&
+      inTextSampleCount >= 10 && seenWordCount >= Math.min(3, wordCount)
+      ? 'observed' : 'insufficient';
     const acousticSource = source.acousticAnalysis && typeof source.acousticAnalysis === 'object' ? source.acousticAnalysis : null;
     const safeAcousticAnalysis = acousticSource ? (function () {
       const durationSeconds = Math.max(0, Math.min(3600, Number(acousticSource.durationSeconds) || 0));
@@ -214,13 +223,13 @@ app.post('/api/sessions', (req, res) => {
       };
     })() : null;
     const safeWordGaze = {
-      quality: gazeSource.quality === 'observed' && safeGazeCalibration && safeGazeCalibration.passed === true ? 'observed' : 'insufficient',
+      quality: wordGazeQuality,
       targetWordCount: wordCount,
       sampleCount: gazeSampleCount,
-      inTextSamples: Math.min(gazeSampleCount, clampInt(gazeSource.inTextSamples, 1000000)),
-      sampleCoveragePercent: Math.max(0, Math.min(100, Number(gazeSource.sampleCoveragePercent) || 0)),
-      uniqueWordsSeen: Math.min(wordCount, clampInt(gazeSource.uniqueWordsSeen, 2000)),
-      wordCoveragePercent: Math.max(0, Math.min(100, Number(gazeSource.wordCoveragePercent) || 0)),
+      inTextSamples: inTextSampleCount,
+      sampleCoveragePercent: gazeSampleCount ? Math.round(inTextSampleCount / gazeSampleCount * 1000) / 10 : 0,
+      uniqueWordsSeen: seenWordCount,
+      wordCoveragePercent: wordCount ? Math.round(seenWordCount / wordCount * 1000) / 10 : 0,
       stableWordVisits: clampInt(gazeSource.stableWordVisits, 100000),
       totalDwellMs: clampInt(gazeSource.totalDwellMs, 3600000),
       regressions: clampInt(gazeSource.regressions, 100000),
@@ -242,12 +251,12 @@ app.post('/api/sessions', (req, res) => {
       passageId: typeof source.passageId === 'string' ? source.passageId.slice(0, 80) : '',
       passageTitle: typeof source.passageTitle === 'string' ? source.passageTitle.slice(0, 180) : '',
       mode,
-      durationSeconds: optionalSeconds(source.durationSeconds) || 0,
+      durationSeconds: segmentDurationSeconds,
       wordCount,
       errors: clampInt(source.errors, 200),
       omissions: clampInt(source.omissions, 200),
       selfCorrections: clampInt(source.selfCorrections, 200),
-      hasValidGaze: source.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true,
+      hasValidGaze: gazeValidForSegment,
       wordGaze: safeWordGaze,
       acousticAnalysis: safeAcousticAnalysis,
       metrics: {
