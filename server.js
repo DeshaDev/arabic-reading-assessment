@@ -12,7 +12,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Ensure data directory exists
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.NEBRAS_DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -147,14 +147,6 @@ app.post('/api/sessions', (req, res) => {
     lineSweepsCount: Math.max(0, Math.min(100000, Number(incomingMetrics.lineSweepsCount) || 0)),
     sampleCount: Math.max(0, Math.min(1000000, Number(incomingMetrics.sampleCount) || 0))
   };
-  const risk = body.riskClassification && typeof body.riskClassification === 'object' ? body.riskClassification : {};
-  const riskClassification = {
-    level: risk.level === 'observations' && wpm !== null ? 'observations' : 'insufficient',
-    levelAr: risk.level === 'observations' && wpm !== null ? 'مؤشرات وصفية — لا تصنيف تشخيصي' : 'بيانات غير كافية للتفسير',
-    score: null,
-    hasValidGaze: body.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true && durationSeconds >= 10 && metrics.totalFixations >= 2,
-    reasons: Array.isArray(risk.reasons) ? risk.reasons.slice(0, 12).filter(x => typeof x === 'string').map(x => x.slice(0, 400)) : []
-  };
   const clampInt = (value, max) => Math.max(0, Math.min(max, Math.floor(Number(value) || 0)));
   const optionalSeconds = value => {
     if (value === null || value === undefined || value === '') return null;
@@ -173,6 +165,14 @@ app.post('/api/sessions', (req, res) => {
     meanErrorPx: rawGazeCalibration.meanErrorPx == null ? null : clampInt(rawGazeCalibration.meanErrorPx, 10000),
     quality: rawGazeCalibration.passed === true ? 'within-internal-tolerance' : 'insufficient-or-outside-tolerance'
   } : null;
+  const risk = body.riskClassification && typeof body.riskClassification === 'object' ? body.riskClassification : {};
+  const riskClassification = {
+    level: risk.level === 'observations' && wpm !== null ? 'observations' : 'insufficient',
+    levelAr: risk.level === 'observations' && wpm !== null ? 'مؤشرات وصفية — لا تصنيف تشخيصي' : 'بيانات غير كافية للتفسير',
+    score: null,
+    hasValidGaze: body.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true && durationSeconds >= 10 && metrics.totalFixations >= 2,
+    reasons: Array.isArray(risk.reasons) ? risk.reasons.slice(0, 12).filter(x => typeof x === 'string').map(x => x.slice(0, 400)) : []
+  };
   const safeReadingSegments = Array.isArray(body.readingSegments) ? body.readingSegments.slice(0, 2).map(segment => {
     const source = segment && typeof segment === 'object' ? segment : {};
     const mode = source.mode === 'oral' || source.mode === 'silent' ? source.mode : 'silent';
@@ -628,7 +628,11 @@ app.get('/api/stats', (req, res) => {
   });
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`[OK] نَبراس (نسخة تجريبية) يعمل على http://${HOST}:${PORT}`);
-  console.log(`[LINK] افتح المتصفح على: http://${HOST}:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, HOST, () => {
+    console.log(`[OK] نَبراس (نسخة تجريبية) يعمل على http://${HOST}:${PORT}`);
+    console.log(`[LINK] افتح المتصفح على: http://${HOST}:${PORT}`);
+  });
+}
+
+module.exports = app;
