@@ -9,6 +9,7 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const enhancementSource = fs.readFileSync(path.join(root, 'public/js/assessment-enhancements.js'), 'utf8');
 const baseSource = fs.readFileSync(path.join(root, 'public/js/assessment.js'), 'utf8');
+const trackerSource = fs.readFileSync(path.join(root, 'public/js/tracker.js'), 'utf8');
 
 test('skipping calibration returns to camera setup and never opens an uncalibrated reading session', () => {
   class AssessmentSessionManager {}
@@ -57,6 +58,46 @@ test('reading screen shows live word and line estimate and highlights the mapped
   assert.match(enhancementSource, /allowUncalibratedGaze = false/);
   assert.doesNotMatch(enhancementSource, /تقدير غير مُعاير:/);
   assert.match(enhancementSource, /if \(!this\.calibrationCompleted\) \{/);
+});
+
+test('calibration trains across nine screen regions and records time-separated samples', () => {
+  const calibrationStart = enhancementSource.indexOf('proto.startCalibration = async function');
+  const pointsStart = enhancementSource.indexOf('const points = [', calibrationStart);
+  const pointsEnd = enhancementSource.indexOf('].map(point =>', pointsStart);
+  assert.ok(calibrationStart >= 0 && pointsStart > calibrationStart && pointsEnd > pointsStart);
+  const trainingPoints = enhancementSource.slice(pointsStart, pointsEnd);
+  assert.equal((trainingPoints.match(/\{ name: '/g) || []).length, 9);
+  assert.match(trackerSource, /for \(let sample = 0; sample < 3; sample\+\+\)/);
+  assert.match(trackerSource, /await new Promise\(resolve => setTimeout\(resolve, 140\)\)/);
+  assert.doesNotMatch(baseSource, /تخطي المعايرة والبدء في القراءة فوراً/);
+  assert.match(baseSource, /تسع نقاط معايرة/);
+});
+
+test('the reading task refuses to begin without successful gaze calibration', async () => {
+  class AssessmentSessionManager {}
+  const status = { textContent: '' };
+  const sandbox = {
+    AssessmentSessionManager,
+    window: {},
+    document: { getElementById: id => id === 'live-gaze-readout' ? status : null },
+    console,
+    URL,
+    setTimeout,
+    clearTimeout,
+    setInterval,
+    clearInterval,
+    performance: { now: () => 1 },
+    navigator: {},
+    fetch: () => Promise.resolve({ ok: true, json: async () => ({}) })
+  };
+  vm.runInNewContext(enhancementSource, sandbox, { filename: 'assessment-enhancements.js' });
+  const manager = Object.create(AssessmentSessionManager.prototype);
+  manager.segmentActive = false;
+  manager.calibrationCompleted = false;
+  manager.currentReadingMode = 'oral';
+  manager.startAudioCapture = () => assert.fail('audio/reading should not start before gaze calibration');
+  await manager.beginReadingSegment();
+  assert.match(status.textContent, /يجب اجتياز معايرة النظر أولًا/);
 });
 
 test('oral reading records audio by default after the user starts the passage, with a downloadable result', () => {
