@@ -51,7 +51,7 @@ test('reading screen shows live word and line estimate and highlights the mapped
   assert.match(enhancementSource, /id="live-gaze-readout"/);
   assert.match(enhancementSource, /إشارة النظر خارج النص أو بين الكلمات/);
   assert.match(enhancementSource, /classList\.add\('is-current-gaze'\)/);
-  assert.match(enhancementSource, /'السطر '\s*\+\s*wordItem\.lineNumber/);
+  assert.match(enhancementSource, /السطر '\s*\+\s*wordItem\.lineNumber/);
   assert.match(enhancementSource, /allowUncalibratedGaze/);
 });
 
