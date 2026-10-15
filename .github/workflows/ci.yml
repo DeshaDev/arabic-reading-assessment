@@ -25,6 +25,8 @@ jobs:
         run: |
           node --check public/js/app.js
           node --check public/js/assessment.js
+          node --check public/js/assessment-enhancements.js
+          node --check public/js/assessment-protocol.js
           node --check public/js/dashboard.js
           node --check public/js/metrics.js
           node --check public/js/report.js
