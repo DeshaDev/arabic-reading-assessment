@@ -22,6 +22,7 @@
     });
     this.audioRecords = {};
     this.audioCaptureErrors = {};
+    this.discardAudioOnStop = false;
     this.primaryText = text;
     this.secondText = (window.ARABIC_ALTERNATE_TEXTS || []).find(item => item.grade === text.grade) || text;
     this.secondReadingMode = secondReadingMode || (Number(student.grade) <= 2 ? 'oral' : 'silent');
@@ -216,17 +217,20 @@
       const chunks = [];
       recorder.ondataavailable = event => { if (event.data && event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
-        if (blob.size > 0) {
-          const old = this.audioRecords[passageIndex];
-          if (old && old.url) URL.revokeObjectURL(old.url);
-          this.audioRecords[passageIndex] = { blob: blob, url: URL.createObjectURL(blob), mimeType: blob.type };
+        if (!this.discardAudioOnStop) {
+          const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+          if (blob.size > 0) {
+            const old = this.audioRecords[passageIndex];
+            if (old && old.url) URL.revokeObjectURL(old.url);
+            this.audioRecords[passageIndex] = { blob: blob, url: URL.createObjectURL(blob), mimeType: blob.type };
+          }
         }
+        chunks.length = 0;
         if (this.activeAudioStream) this.activeAudioStream.getTracks().forEach(track => track.stop());
         this.activeAudioStream = null;
         this.activeRecorder = null;
         if (this.audioStopResolve) {
-          this.audioStopResolve(this.audioRecords[passageIndex] || null);
+          this.audioStopResolve(this.discardAudioOnStop ? null : (this.audioRecords[passageIndex] || null));
           this.audioStopResolve = null;
         }
       };
