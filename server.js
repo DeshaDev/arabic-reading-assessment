@@ -176,10 +176,13 @@ app.post('/api/sessions', (req, res) => {
         regressionRatePercent: Math.max(0, Math.min(100, Number(segmentMetrics.regressionRatePercent) || 0)),
         sampleCount: clampInt(segmentMetrics.sampleCount, 1000000)
       },
-      wordMarks: Array.isArray(source.wordMarks) ? source.wordMarks.slice(0, 500).map(mark => ({
-        wordIndex: clampInt(mark && mark.wordIndex, 2000),
-        type: ['substitution', 'omission', 'hesitation', 'selfCorrection'].includes(mark && mark.type) ? mark.type : null
-      })).filter(mark => mark.type !== null) : []
+      wordMarks: Array.isArray(source.wordMarks) ? source.wordMarks.slice(0, 500).reduce((marks, mark) => {
+        const wordIndex = Number(mark && mark.wordIndex);
+        const type = ['substitution', 'omission', 'hesitation', 'selfCorrection'].includes(mark && mark.type) ? mark.type : null;
+        if (!Number.isInteger(wordIndex) || wordIndex < 0 || wordIndex > 2000 || !type || marks.some(item => item.wordIndex === wordIndex)) return marks;
+        marks.push({ wordIndex, type });
+        return marks;
+      }, []) : []
     };
   }) : [];
   const assistanceTypes = ['none', 'prompt', 'word', 'shared'];
