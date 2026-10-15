@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { alignReadingTranscript, normalizeArabicWord, tokenizeArabic } = require('../lib/reading-alignment');
+const { alignReadingTranscript, normalizeArabicWord, tokenizeArabic, alignTimedWordsToTranscript } = require('../lib/reading-alignment');
 
 test('normalizes tashkeel and common alif variants without changing the display text', () => {
   assert.equal(normalizeArabicWord('إِنَّ'), 'ان');
@@ -55,4 +55,47 @@ test('reports deletions for an empty transcription and insertions for an empty r
   const extra = alignReadingTranscript('', 'كلام زائد');
   assert.equal(extra.counts.insertions, 2);
   assert.equal(extra.wordErrorRate, null);
+});
+
+
+test('maps timestamps only when the timestamp pass agrees with the primary transcript', () => {
+  const result = alignTimedWordsToTranscript('ذهب سامي إلى المدرسة', [
+    { word: 'ذهب', start: 0.0, end: 0.24 },
+    { word: 'سامي', start: 0.28, end: 0.62 },
+    // The timestamp model omitted «إلى»; following word times must not shift to the wrong word.
+    { word: 'المدرسة', start: 1.05, end: 1.48 }
+  ]);
+  assert.equal(result.quality, 'partial');
+  assert.equal(result.transcriptWordCount, 4);
+  assert.equal(result.timestampWordCount, 3);
+  assert.equal(result.matchedWordCount, 3);
+  assert.equal(result.coveragePercent, 75);
+  assert.deepEqual(result.words.map(word => word.transcriptIndex), [0, 1, 2, 3]);
+  assert.equal(result.words[0].startSeconds, 0);
+  assert.equal(result.words[1].startSeconds, 0.28);
+  assert.equal(result.words[2].timingQuality, 'unmatched');
+  assert.equal(result.words[2].startSeconds, null);
+  assert.equal(result.words[3].word, 'المدرسة');
+  assert.equal(result.words[3].startSeconds, 1.05);
+  assert.equal(result.words[3].timingQuality, 'cross-model-agreement');
+});
+
+test('does not assign one model’s timestamp to a different transcript word', () => {
+  const result = alignTimedWordsToTranscript('قال الولد كتابًا', [
+    { word: 'قال', start: 0.0, end: 0.2 },
+    { word: 'الولد', start: 0.25, end: 0.5 },
+    { word: 'كتابه', start: 0.55, end: 0.9 }
+  ]);
+  assert.equal(result.matchedWordCount, 2);
+  assert.equal(result.words[2].timingQuality, 'unmatched');
+  assert.equal(result.words[2].startSeconds, null);
+});
+
+test('validates odd or missing timing records without generating timestamp coverage', () => {
+  const result = alignTimedWordsToTranscript('قرأ الطفل', [
+    { word: 'قرأ', start: 1.0, end: 0.9 },
+    { word: 'الطفل', start: -2, end: 2 }
+  ]);
+  assert.equal(result.matchedWordCount, 0);
+  assert.equal(result.quality, 'unavailable');
 });
