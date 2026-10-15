@@ -4,7 +4,8 @@ const {
   countArabicWords,
   calculateObservedWpm,
   createRapidNamingSequence,
-  summarizeReadingSegments
+  summarizeReadingSegments,
+  summarizeWordMarks
 } = require('../public/js/assessment-protocol.js');
 const { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS } = require('../public/js/texts.js');
 
@@ -64,4 +65,21 @@ test('provides a distinct alternate passage for every grade with valid comprehen
       assert.ok(question.correctIndex >= 0 && question.correctIndex < question.options.length);
     }
   }
+});
+
+test('summarizes unique teacher word marks without double-counting a word', () => {
+  const summary = summarizeWordMarks([
+    { wordIndex: 2, type: 'substitution' },
+    { wordIndex: 4, type: 'omission' },
+    { wordIndex: 4, type: 'hesitation' },
+    { wordIndex: 8, type: 'selfCorrection' },
+    { wordIndex: 99, type: 'invalid' }
+  ]);
+  assert.deepEqual(summary, {
+    total: 3,
+    substitution: 1,
+    omission: 1,
+    hesitation: 0,
+    selfCorrection: 1
+  });
 });
