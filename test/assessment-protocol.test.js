@@ -6,6 +6,7 @@ const {
   createRapidNamingSequence,
   summarizeReadingSegments
 } = require('../public/js/assessment-protocol.js');
+const { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS } = require('../public/js/texts.js');
 
 test('counts Arabic tokens without counting tashkeel as separate words', () => {
   assert.equal(countArabicWords('قَرَأَ الطِّفْلُ نَصًّا جَدِيدًا.'), 4);
@@ -46,4 +47,21 @@ test('does not combine oral and silent reading speeds into one overall measure',
   assert.equal(summary.wpm, null);
   assert.equal(summary.wordCount, 120);
   assert.equal(summary.durationSeconds, 90);
+});
+
+test('provides a distinct alternate passage for every grade with valid comprehension questions', () => {
+  assert.equal(ARABIC_TEXTS_BANK.length, 6);
+  assert.equal(ARABIC_ALTERNATE_TEXTS.length, 6);
+  for (let grade = 1; grade <= 6; grade++) {
+    const primary = ARABIC_TEXTS_BANK.find(text => text.grade === grade);
+    const alternate = ARABIC_ALTERNATE_TEXTS.find(text => text.grade === grade);
+    assert.ok(primary, 'missing primary passage for grade ' + grade);
+    assert.ok(alternate, 'missing alternate passage for grade ' + grade);
+    assert.notEqual(primary.id, alternate.id);
+    assert.notEqual(primary.content, alternate.content);
+    assert.equal(alternate.comprehensionQuestions.length, 3);
+    for (const question of alternate.comprehensionQuestions) {
+      assert.ok(question.correctIndex >= 0 && question.correctIndex < question.options.length);
+    }
+  }
 });
