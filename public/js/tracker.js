@@ -219,6 +219,31 @@ class ArabicEyeTracker {
     this.calibrationClicks = 0;
   }
 
+  shutdown() {
+    if (this.envInterval) clearInterval(this.envInterval);
+    if (this.styleInterval) clearInterval(this.styleInterval);
+    this.envInterval = null;
+    this.styleInterval = null;
+    this.onGazePoint = null;
+    this.onEnvironmentCheck = null;
+    this.isTracking = false;
+    this.isStreaming = false;
+    try {
+      if (typeof webgazer !== 'undefined' && typeof webgazer.end === 'function') {
+        const result = webgazer.end();
+        if (result && typeof result.catch === 'function') result.catch(err => console.warn('WebGazer shutdown warning:', err));
+      } else if (typeof webgazer !== 'undefined' && typeof webgazer.pause === 'function') {
+        webgazer.pause();
+      }
+    } catch (err) {
+      console.warn('WebGazer shutdown warning:', err);
+    }
+    const video = document.getElementById('webgazerVideoFeed');
+    if (video && video.srcObject && typeof video.srcObject.getTracks === 'function') {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
+  }
+
   pause() {
     if (typeof webgazer !== 'undefined' && webgazer.pause) {
       webgazer.pause();
