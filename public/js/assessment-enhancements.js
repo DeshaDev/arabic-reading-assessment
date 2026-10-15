@@ -22,6 +22,7 @@
     });
     this.audioRecords = {};
     this.audioCaptureErrors = {};
+    this.audioCaptureStartPerf = {};
     this.audioSessionToken = (this.audioSessionToken || 0) + 1;
     this.discardAudioOnStop = false;
     this.primaryText = text;
@@ -326,7 +327,14 @@
         }
       }
       if (this.currentSegmentSamples.length < 20000) {
-        this.currentSegmentSamples.push({ t: Number(gaze.t) || performance.now(), x: x, y: y, wordIndex: wordIndex });
+        const observedTime = Number(gaze.t) || performance.now();
+        this.currentSegmentSamples.push({
+          t: observedTime,
+          segmentT: Math.max(0, observedTime - this.segmentStartedAt),
+          x: x,
+          y: y,
+          wordIndex: wordIndex
+        });
         this.visualizer.drawLiveGaze(x, y);
       }
     };
@@ -393,6 +401,7 @@
       };
       this.activeAudioStream = stream;
       this.activeRecorder = recorder;
+      this.audioCaptureStartPerf[passageIndex] = performance.now();
       recorder.start(250);
       return true;
     } catch (error) {
@@ -521,7 +530,10 @@
       gazeSamples: samples,
       viewportWidth: document.getElementById('reading-wrapper')?.clientWidth || window.innerWidth,
       viewportHeight: document.getElementById('reading-wrapper')?.clientHeight || 360,
-      audioUrl: audio && audio.url ? audio.url : null
+      audioUrl: audio && audio.url ? audio.url : null,
+      audioOffsetSeconds: Number.isFinite(this.audioCaptureStartPerf[index])
+        ? Math.max(0, (this.segmentStartedAt - this.audioCaptureStartPerf[index]) / 1000)
+        : 0
     };
     this.rawGazeSamples.push.apply(this.rawGazeSamples, samples);
     this.renderTeacherMarking(index);
@@ -748,7 +760,8 @@
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors, omissions: segment.omissions,
       selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze, metrics: segment.metrics,
       viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, wordGaze: segment.wordGaze,
-      acousticAnalysis: segment.acousticAnalysis, audioUrl: segment.audioUrl, index: index
+      acousticAnalysis: segment.acousticAnalysis, audioUrl: segment.audioUrl, audioOffsetSeconds: segment.audioOffsetSeconds,
+      gazeSamples: segment.gazeSamples, index: index
     }));
     payload.metrics = combinedMetrics;
     payload.riskClassification = risk;
