@@ -167,6 +167,14 @@
 
   proto.startCalibration = async function () {
     this.allowUncalibratedGaze = false;
+    // A user can click quickly while WebGazer is still requesting permission/loading its model.
+    if (!this.tracker.isStreaming && this.cameraInitializationPromise) {
+      const startup = document.getElementById('camera-startup-status');
+      if (startup) startup.textContent = 'لحظة واحدة؛ يجري تشغيل الكاميرا وتجهيز نموذج تتبع النظر…';
+      await this.cameraInitializationPromise;
+      // Do not let the pending calibration override a passage after the user chose to continue.
+      if (this.stage !== 'env_check') return;
+    }
     if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
       const container = document.getElementById('assessment-container');
       if (container) container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص الكاميرا أو أكمل مهام القراءة دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button></div></div>';
