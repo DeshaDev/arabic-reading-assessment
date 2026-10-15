@@ -8,7 +8,8 @@ const {
   summarizeWordMarks,
   summarizeWordGaze,
   assessCalibrationValidation,
-  summarizeLowEnergyFrames
+  summarizeLowEnergyFrames,
+  summarizeGazeDuringSpeechInterval
 } = require('../public/js/assessment-protocol.js');
 const { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS } = require('../public/js/texts.js');
 
@@ -182,4 +183,48 @@ test('marks low-level or too-short recordings insufficient instead of inventing 
   assert.equal(quiet.pauseCount, 0);
   const short = summarizeLowEnergyFrames(Array(40).fill(0.05), 0.02, 0.05, { durationSeconds: 0.8 });
   assert.equal(short.quality, 'insufficient');
+});
+
+
+test('correlates gaze only to timed speech intervals and ignores gaze samples with no word hit', () => {
+  const summary = summarizeGazeDuringSpeechInterval([
+    { segmentT: 990, wordIndex: null },
+    { segmentT: 1010, wordIndex: 4 },
+    { segmentT: 1050, wordIndex: 2 },
+    { segmentT: 1080, wordIndex: 2 },
+    { segmentT: 1120, wordIndex: 2 },
+    { segmentT: 1200, wordIndex: 1 }
+  ], 6, 2, 1.0, 1.2, 0.01);
+  assert.equal(summary.quality, 'observed');
+  assert.equal(summary.gazeSampleCount, 5);
+  assert.equal(summary.mappedGazeSampleCount, 4);
+  assert.equal(summary.targetWordSampleCount, 3);
+  assert.equal(summary.targetWordGazePercent, 75);
+  assert.equal(summary.dominantGazeWordIndex, 2);
+  assert.equal(summary.dominantGazeWordSharePercent, 75);
+});
+
+test('does not infer a word fixation from null or out-of-range gaze indices', () => {
+  const summary = summarizeGazeDuringSpeechInterval([
+    { segmentT: 200, wordIndex: null },
+    { segmentT: 220, wordIndex: null },
+    { segmentT: 240, wordIndex: 999 }
+  ], 5, 0, 0.1, 0.3, 0);
+  assert.equal(summary.quality, 'insufficient');
+  assert.equal(summary.gazeSampleCount, 3);
+  assert.equal(summary.mappedGazeSampleCount, 0);
+  assert.equal(summary.targetWordSampleCount, 0);
+  assert.equal(summary.targetWordGazePercent, null);
+  assert.equal(summary.dominantGazeWordIndex, null);
+});
+
+test('refuses invalid speech windows and does not calculate gaze correlations outside a valid word timestamp', () => {
+  const summary = summarizeGazeDuringSpeechInterval([
+    { segmentT: 100, wordIndex: 0 },
+    { segmentT: 130, wordIndex: 0 },
+    { segmentT: 160, wordIndex: 0 }
+  ], 2, 0, 0.5, 0.1, 0);
+  assert.equal(summary.quality, 'insufficient');
+  assert.equal(summary.gazeSampleCount, 0);
+  assert.equal(summary.mappedGazeSampleCount, 0);
 });
