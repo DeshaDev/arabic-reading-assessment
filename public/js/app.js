@@ -41,6 +41,11 @@ class AppRouter {
   navigate(viewName) {
     this.currentView = viewName;
 
+    const sectionNames = { dashboard: 'نظرة عامة', assessment: 'جلسة تقييم جديدة', texts: 'مكتبة النصوص', intervention: 'أنشطة الدعم القرائي' };
+    const sectionLabel = document.getElementById('topbar-section');
+    if (sectionLabel) sectionLabel.textContent = sectionNames[viewName] || sectionNames.dashboard;
+    if (window.location.hash !== '#' + viewName) history.replaceState(null, '', '#' + viewName);
+
     // تحديث أزرار التنقل
     document.querySelectorAll('.nav-link').forEach(link => {
       if (link.getAttribute('data-view') === viewName) {
@@ -59,9 +64,7 @@ class AppRouter {
 
       case 'assessment':
         this.renderAssessmentSetup();
-        if (!this.tracker.isStreaming) {
-          this.tracker.initialize();
-        }
+        // Request camera access only after the user explicitly starts a session.
         break;
 
       case 'texts':
