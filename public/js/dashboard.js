@@ -78,8 +78,8 @@ class DashboardModule {
     html += '<section class="welcome-panel"><div class="welcome-copy"><div class="eyebrow">مساحة التقييم التربوي</div>';
     html += '<h1>' + greeting + '، لنفهم رحلة القراءة بشكل أوضح.</h1>';
     html += '<p>اجمع ملاحظات القراءة في مكان واحد، تابع الجلسات، وحدّد الخطوة التعليمية التالية — من دون تحويل المؤشرات الأولية إلى تشخيص.</p>';
-    html += '<div class="header-actions"><button class="btn btn-primary" onclick="window.appRouter.navigate(\\'assessment\\')">＋ بدء جلسة تقييم</button>';
-    html += '<button class="btn btn-outline" onclick="window.appRouter.navigate(\\'texts\\')">استعراض مكتبة النصوص ←</button></div></div>';
+    html += '<div class="header-actions"><button class="btn btn-primary" onclick="window.appRouter.navigate(\'assessment\')">＋ بدء جلسة تقييم</button>';
+    html += '<button class="btn btn-outline" onclick="window.appRouter.navigate(\'texts\')">استعراض مكتبة النصوص ←</button></div></div>';
     html += '<div class="welcome-art" aria-hidden="true"><svg class="book-illustration" viewBox="0 0 220 190" fill="none"><circle cx="111" cy="91" r="76" fill="#D9EFE6" fill-opacity=".10"/><circle cx="111" cy="91" r="61" stroke="#D9EFE6" stroke-opacity=".25" stroke-dasharray="3 7"/><path d="M41 55c19-9 39-5 60 7v91c-19-12-41-16-60-7V55Z" fill="#F6FCF9" stroke="#AEDCCE" stroke-width="2"/><path d="M101 62c20-12 40-16 60-7v91c-19-9-41-5-60 7V62Z" fill="#C9E8DC" stroke="#9BD0BE" stroke-width="2"/><path d="M51 75c12-4 23-2 34 3M51 87c13-4 22-2 34 3M51 99c12-4 23-2 34 3M112 76c12-5 23-7 36-5M112 89c12-5 23-7 36-5M112 102c12-5 23-7 36-5" stroke="#7CAFA0" stroke-width="2.4" stroke-linecap="round"/><path d="m128 22 4 10 10 4-10 4-4 10-4-10-10-4 10-4 4-10Z" fill="#E6C987"/><circle cx="176" cy="125" r="6" fill="#A2D8C7"/><circle cx="52" cy="36" r="4" fill="#E6C987"/></svg></div></section>';
 
     html += '<section class="dashboard-section"><div class="section-head"><div><h2>صورة النشاط</h2><p>ملخص مستمد من السجلات الموجودة في مساحة العمل</p></div><span class="pilot-pill"><span></span> بيانات الجلسات فقط</span></div>';
@@ -98,7 +98,7 @@ class DashboardModule {
     if (recentSessions.length) {
       html += '<div class="panel-content"><div class="session-list">' + recentSessions.map(this.renderSessionItem.bind(this)).join('') + '</div></div>';
     } else {
-      html += '<div class="empty-state"><div class="empty-illustration">▤</div><h3>ستظهر الجلسات هنا</h3><p>بعد تسجيل طالب وإكمال جلسة، ستجد وقتها والنص المستخدم وحالة اكتمال البيانات في هذا القسم.</p><button class="btn btn-primary" onclick="window.appRouter.navigate(\\'assessment\\')">بدء أول جلسة</button></div>';
+      html += '<div class="empty-state"><div class="empty-illustration">▤</div><h3>ستظهر الجلسات هنا</h3><p>بعد تسجيل طالب وإكمال جلسة، ستجد وقتها والنص المستخدم وحالة اكتمال البيانات في هذا القسم.</p><button class="btn btn-primary" onclick="window.appRouter.navigate(\'assessment\')">بدء أول جلسة</button></div>';
     }
     html += '</section></section>';
 
@@ -173,8 +173,8 @@ class DashboardModule {
       return '<tr><td><strong>' + this.escape(student.name) + '</strong></td><td>الصف ' + this.escape(student.grade) +
         '</td><td>' + this.escape(student.classroom || '—') + '</td><td>' + (last ? this.formatDate(last.date) : '—') + '</td><td>' + sessions.length +
         '</td><td><span class="status-badge ' + (sessions.length ? 'badge-low' : 'badge-none') + '">' + (sessions.length ? 'لديه جلسات' : 'لم تبدأ جلسة') +
-        '</span></td><td class="table-actions"><button class="btn btn-sm btn-primary" onclick="window.dashboardModule.launchAssessmentForStudent(\\'' + this.escape(student.id) + '\\')">بدء جلسة</button>' +
-        '<button class="btn btn-sm btn-outline" onclick="window.dashboardModule.viewStudentDetails(\\'' + this.escape(student.id) + '\\')">عرض الملف</button></td></tr>';
+        '</span></td><td class="table-actions"><button class="btn btn-sm btn-primary" onclick="window.dashboardModule.launchAssessmentForStudent(\'' + this.escape(student.id) + '\')">بدء جلسة</button>' +
+        '<button class="btn btn-sm btn-outline" onclick="window.dashboardModule.viewStudentDetails(\'' + this.escape(student.id) + '\')">عرض الملف</button></td></tr>';
     }, this).join('');
   }
 
@@ -226,11 +226,11 @@ class DashboardModule {
       var gaze = s.hasValidGaze === true || (s.riskClassification && s.riskClassification.hasValidGaze === true);
       html += '<article class="session-history-item"><div><strong>' + this.escape(s.textTitle || 'جلسة قراءة') + '</strong><div class="text-muted">' + this.formatDate(s.date) +
         ' · ' + (Number(s.durationSeconds) || 0) + ' ثانية · الفهم ' + (Number(s.comprehensionScore) || 0) + '/' + (Number(s.comprehensionTotal) || 0) +
-        '</div><div class="text-muted">' + (gaze ? 'توجد بيانات نظر' : 'بيانات النظر غير كافية') + '</div></div><button class="btn btn-sm btn-outline" onclick="window.dashboardModule.openSessionReport(\\'' +
-        this.escape(s.id) + '\\')">عرض ملخص</button></article>';
+        '</div><div class="text-muted">' + (gaze ? 'توجد بيانات نظر' : 'بيانات النظر غير كافية') + '</div></div><button class="btn btn-sm btn-outline" onclick="window.dashboardModule.openSessionReport(\'' +
+        this.escape(s.id) + '\')">عرض ملخص</button></article>';
     }, this);
-    html += '</div><div class="modal-footer"><button class="btn btn-primary" onclick="window.dashboardModule.launchAssessmentForStudent(\\'' + this.escape(student.id) +
-      '\\');window.dashboardModule.closeModal()">بدء جلسة جديدة</button></div></div>';
+    html += '</div><div class="modal-footer"><button class="btn btn-primary" onclick="window.dashboardModule.launchAssessmentForStudent(\'' + this.escape(student.id) +
+      '\');window.dashboardModule.closeModal()">بدء جلسة جديدة</button></div></div>';
     document.getElementById('modal-content').innerHTML = html;
     document.getElementById('app-modal').classList.add('open');
   }
