@@ -1025,7 +1025,7 @@
     const timestampSummaryMarkup = timestampAlignment.enabled
       ? '<p class="asr-timestamp-summary">توقيتات كلمات اتفق عليها التفريغان: ' + (Number(timestampAlignment.matchedWordCount) || 0) +
         ' من ' + (Number(timestampAlignment.transcriptWordCount) || 0) + ' (' + (Number(timestampAlignment.coveragePercent) || 0) +
-        '%). محرك التوقيت: ' + safe(timestampAlignment.model || 'whisper-1') + '.</p>'
+        '%). محرك التوقيت: ' + safe(timestampAlignment.model || 'whisper-1') + '.<small>' + safe(timestampAlignment.note || 'التوقيتات لا تُعرض إلا عند اتفاق المحركين.') + '</small></p>'
       : '<p class="asr-timestamp-summary">توقيتات الكلمات معطلة على الخادم؛ لا تتوفر مزامنة صوتية مستقلة لهذه النتيجة.</p>';
     const formatTimestamp = seconds => {
       const value = Math.max(0, Number(seconds) || 0);
