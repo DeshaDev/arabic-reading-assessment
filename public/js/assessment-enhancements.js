@@ -179,12 +179,12 @@
     }
     if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
       const container = document.getElementById('assessment-container');
-      if (container) container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص الكاميرا أو أكمل مهام القراءة دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button></div></div>';
+      if (container) container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>لا يمكن تشغيل تتبع الكلمات دون بث كاميرا صالح. اسمح بالكاميرا ثم أعد الفحص.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button></div></div>';
       return;
     }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
-    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة نفسها وانقرها ثلاث مرات في كل نقطة. سيأخذ المتتبع عينات متباعدة أثناء بقائك ناظرًا إليها، ثم يختبر دقته على نقاط مستقلة دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 5 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
+    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">العودة إلى فحص الكاميرا</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة نفسها وانقرها ثلاث مرات في كل نقطة. سيأخذ المتتبع عينات متباعدة أثناء بقائك ناظرًا إليها، ثم يختبر دقته على نقاط مستقلة دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 9 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
     this.tracker.resetCalibration();
     const points = [
       { name: 'المركز', x: 0.50, y: 0.50 },
@@ -235,7 +235,7 @@
           if (success) {
             clicks++;
             if (counter) counter.textContent = clicks + '/3';
-            if (hint) hint.textContent = 'النقطة ' + (i + 1) + ' من 5 · ' + point.name + ' · المتبقي ' + (3 - clicks);
+            if (hint) hint.textContent = 'النقطة ' + (i + 1) + ' من 9 · ' + point.name + ' · المتبقي ' + (3 - clicks);
           } else if (hint) {
             hint.textContent = 'لم تُسجّل العينة؛ أعد النقر بعد التأكد من تشغيل الكاميرا.';
           }
