@@ -160,16 +160,26 @@ app.post('/api/sessions', (req, res) => {
   };
   const rawGazeCalibration = body.gazeCalibration && typeof body.gazeCalibration === 'object'
     ? body.gazeCalibration : null;
-  const safeGazeCalibration = rawGazeCalibration ? {
-    passed: rawGazeCalibration.passed === true,
-    validationTargetCount: clampInt(rawGazeCalibration.validationTargetCount, 5),
-    validTargetCount: clampInt(rawGazeCalibration.validTargetCount, 5),
-    targetsWithinTolerance: clampInt(rawGazeCalibration.targetsWithinTolerance, 5),
-    tolerancePx: clampInt(rawGazeCalibration.tolerancePx, 5000),
-    medianErrorPx: rawGazeCalibration.medianErrorPx == null ? null : clampInt(rawGazeCalibration.medianErrorPx, 10000),
-    meanErrorPx: rawGazeCalibration.meanErrorPx == null ? null : clampInt(rawGazeCalibration.meanErrorPx, 10000),
-    quality: rawGazeCalibration.passed === true ? 'within-internal-tolerance' : 'insufficient-or-outside-tolerance'
-  } : null;
+  const safeGazeCalibration = rawGazeCalibration ? (function () {
+    const validationTargetCount = clampInt(rawGazeCalibration.validationTargetCount, 5);
+    const validTargetCount = clampInt(rawGazeCalibration.validTargetCount, 5);
+    const targetsWithinTolerance = clampInt(rawGazeCalibration.targetsWithinTolerance, 5);
+    const tolerancePx = clampInt(rawGazeCalibration.tolerancePx, 5000);
+    const medianErrorPx = rawGazeCalibration.medianErrorPx == null ? null : clampInt(rawGazeCalibration.medianErrorPx, 10000);
+    const passed = rawGazeCalibration.passed === true &&
+      validationTargetCount >= 4 && validTargetCount >= 4 && targetsWithinTolerance >= 4 &&
+      medianErrorPx !== null && medianErrorPx <= tolerancePx;
+    return {
+      passed: passed,
+      validationTargetCount,
+      validTargetCount,
+      targetsWithinTolerance,
+      tolerancePx,
+      medianErrorPx,
+      meanErrorPx: rawGazeCalibration.meanErrorPx == null ? null : clampInt(rawGazeCalibration.meanErrorPx, 10000),
+      quality: passed ? 'within-internal-tolerance' : 'insufficient-or-outside-tolerance'
+    };
+  })() : null;
   const risk = body.riskClassification && typeof body.riskClassification === 'object' ? body.riskClassification : {};
   const riskClassification = {
     level: risk.level === 'observations' && wpm !== null ? 'observations' : 'insufficient',
