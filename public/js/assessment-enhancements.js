@@ -1009,7 +1009,7 @@
       const summary = window.ReadingAssessmentProtocol.summarizeGazeDuringSpeechInterval(
         samples,
         Number(segment && segment.wordCount) || 0,
-        base.targetIndex,
+        operation.type === 'insertion' ? null : base.targetIndex,
         timestamp.startSeconds,
         timestamp.endSeconds,
         Number(segment && segment.audioOffsetSeconds) || 0
@@ -1048,7 +1048,8 @@
     const differences = (alignment.operations || []).filter(item => item.type !== 'match').slice(0, 80);
     const differenceMarkup = differences.length
       ? '<ul class="asr-difference-list">' + differences.map(item => {
-        const gazeAtWord = gazePerWord.find(gazeWord => Number(gazeWord.wordIndex) === Number(item.targetIndex));
+        const gazeAtWord = item.type === 'insertion' ? null :
+          gazePerWord.find(gazeWord => Number(gazeWord.wordIndex) === Number(item.targetIndex));
         const gazeContext = gazeAtWord
           ? '<span class="asr-gaze-context">إشارة نظر مجمعة لهذه الكلمة: ' + Math.round(Number(gazeAtWord.totalDwellMs) || 0) +
             ' ms عبر ' + (Number(gazeAtWord.visitCount) || 0) + ' زيارات. هذا وحده لا يثبت سبب الاختلاف.</span>'
@@ -1073,9 +1074,16 @@
             ' عينات نظر، منها ' + (Number(temporal.mappedGazeSampleCount) || 0) + ' رُبطت بمنطقة كلمة. نسبة العينات المربوطة بكلمة النص المستهدف: ' +
             (temporal.targetWordGazePercent == null ? 'غير متاحة' : temporal.targetWordGazePercent + '%') + '.</span>'
           : '<span class="asr-gaze-context">لا توجد عينات زمنية كافية لربط النظر بهذه اللحظة الصوتية.</span>';
+        const targetMarkup = item.type === 'insertion'
+          ? '<span>موضع الإضافة: ' + safe(item.boundaryAfterWord ? 'بعد «' + item.boundaryAfterWord + '»' :
+              item.boundaryBeforeWord ? 'قبل «' + item.boundaryBeforeWord + '»' : 'بداية النص') + '</span>'
+          : '<span>النص: ' + safe(item.targetWord || '—') + '</span>';
+        const temporalGazeMarkup = temporal && temporal.quality === 'observed' && item.type === 'insertion'
+          ? '<span class="asr-gaze-context">تتوفر عينات نظر خلال موضع الإضافة، لكن لا توجد كلمة مرجعية لهذا الموضع لحساب نسبة نظر إليها.</span>'
+          : temporalGaze;
         return '<li class="asr-difference asr-' + safe(item.type) + '"><strong>' + safe(labels[item.type] || 'فرق محتمل') +
-          '</strong><span>النص: ' + safe(item.targetWord || '—') + '</span><span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span>' +
-          timestampMarkup + temporalGaze + gazeContext + '</li>';
+          '</strong>' + targetMarkup + '<span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span>' +
+          timestampMarkup + temporalGazeMarkup + gazeContext + '</li>';
       }).join('') + '</ul>'
       : '<p class="asr-no-differences">لم يرصد التطابق النصي اختلافًا واضحًا. هذا لا يثبت خلو القراءة من الأخطاء؛ فقد يصحح محرك التفريغ بعض الكلمات تلقائيًا.</p>';
     const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
