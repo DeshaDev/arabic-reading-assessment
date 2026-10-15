@@ -606,3 +606,68 @@ a { color: inherit; }
   .report-section, .student-info-box, .metric-card, .rec-card { break-inside: avoid; }
   @page { size: A4; margin: 14mm; }
 }
+
+/* Structured Arabic reading assessment */
+.ran-board {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  max-width: 640px;
+  margin: 24px auto;
+  padding: 18px;
+  background: #f7faf8;
+  border: 1px solid #e6eee9;
+  border-radius: 14px;
+}
+.ran-letter {
+  display: grid;
+  place-items: center;
+  min-height: 58px;
+  border: 1px solid #e3ebe6;
+  border-radius: 10px;
+  color: #203b44;
+  background: #fff;
+  font-size: 29px;
+  line-height: 1.2;
+  font-weight: 600;
+}
+.audio-consent-row {
+  padding: 13px 15px;
+  margin: 15px 0;
+  border: 1px solid #dfeae4;
+  border-radius: 10px;
+  color: #577168;
+  background: #f5faf7;
+  font-size: 11px;
+  line-height: 1.9;
+}
+.audio-consent-row label { display: flex; align-items: flex-start; gap: 10px; }
+.audio-consent-row input { flex: 0 0 auto; margin-top: 5px; accent-color: var(--teal); }
+.teacher-marking-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+.teacher-marking-grid .form-group { margin-bottom: 5px; }
+.teacher-marking-grid input { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid #dfe7e3; border-radius: 9px; background: #fff; }
+.reading-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 14px; }
+.reading-summary-card {
+  min-width: 0; padding: 18px; border-radius: 14px; border: 1px solid var(--line);
+  background: #fff; box-shadow: var(--shadow);
+}
+.reading-summary-top { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+.reading-summary-top strong { font-size: 13px; line-height: 1.8; }
+.reading-summary-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+.reading-summary-stats > div { padding: 10px; border-radius: 9px; background: #f7faf8; min-width: 0; }
+.reading-summary-stats span { display: block; margin-bottom: 3px; font-size: 10px; color: var(--muted); }
+.reading-summary-stats strong { display: block; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.reading-summary-card audio { display: block; width: 100%; margin-top: 16px; min-height: 37px; }
+.reading-summary-card .text-muted { font-size: 10px; line-height: 1.8; }
+#ran-timer { display: inline-block; min-width: 90px; }
+@media (max-width: 680px) {
+  .ran-board { grid-template-columns: repeat(4, minmax(0,1fr)); gap: 6px; padding: 10px; }
+  .ran-letter { min-height: 52px; font-size: 25px; }
+  .teacher-marking-grid { grid-template-columns: 1fr; gap: 5px; }
+  .reading-summary-grid { grid-template-columns: 1fr; }
+}
