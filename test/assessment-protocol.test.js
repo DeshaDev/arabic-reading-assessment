@@ -233,7 +233,7 @@ test('refuses invalid speech windows and does not calculate gaze correlations ou
 
 
 test('uses one Arabic token index across diacritics, punctuation, spaces, and line breaks', () => {
-  const source = 'بِسْمِ اللَّهِ،\\n  ١٢٣! a-b';
+  const source = 'بِسْمِ اللَّهِ،\n  ١٢٣! a-b';
   const tokens = tokenizeArabicWords(source);
   assert.deepEqual(tokens.map(token => token.word), ['بِسْمِ', 'اللَّهِ', '١٢٣', 'a', 'b']);
   assert.deepEqual(tokens.map(token => token.index), [0, 1, 2, 3, 4]);
