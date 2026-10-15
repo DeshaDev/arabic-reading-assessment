@@ -540,7 +540,9 @@
         ? '<audio controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">التسجيل محلي مؤقتًا. لا يُرسل إلى مزوّد التفريغ إلا بعد الموافقة الصريحة والضغط على زر التحليل.</p>'
         : '';
       const analysisControls = segment.audioUrl && segment.mode === 'oral'
-        ? '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>'
+        ? (window.NEBRAS_DEMO_MODE
+          ? '<div class="asr-consent-panel"><span class="badge-info">تحليل الصوت غير متاح في Pages</span><p class="text-muted">يمكنك تجربة التقييم وحفظ تقريره على هذا المتصفح. تفريغ الصوت الآلي يتطلب تشغيل الخادم مع إعداد مفتاح API؛ لن يُرسل هذا التسجيل من صفحة Pages.</p></div>'
+          : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
         : '';
       return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
         (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
@@ -552,9 +554,11 @@
     }).join('');
     const visualButtons = segments.map((segment, index) => '<button class="btn btn-sm ' + (index === 0 ? 'active' : '') +
       '" id="visual-segment-' + index + '" onclick="window.assessmentManager.selectVisualSegment(' + index + ')">' + (index + 1) + '. ' + safe(segment.passageTitle) + '</button>').join('');
-    const saveMessage = session.saveError
-      ? '<div class="diagnostic-alert-banner" style="background:#fff7e7;border:1px solid #efdbad;color:#795a28"><strong>لم تُحفظ الجلسة على الخادم.</strong> ' + safe(session.saveError) + ' احتفظ بهذا الملخص قبل مغادرة الصفحة.</div>'
-      : '<div class="diagnostic-alert-banner" style="background:#eaf7f0;border:1px solid #c7e7d7;color:#2d6c56">تم حفظ ملخص الجلسة. لا تُحفظ إحداثيات النظر الخام أو ملفات الصوت.</div>';
+    const saveMessage = window.NEBRAS_DEMO_MODE
+      ? '<div class="diagnostic-alert-banner" style="background:#fff7e7;border:1px solid #efdbad;color:#795a28">تم حفظ هذه الجلسة التجريبية في تخزين هذا المتصفح فقط؛ لن تظهر على جهاز آخر. لا تُدخل بيانات أطفال حقيقيين. لا يُرسل التسجيل الصوتي ولا تُحفظ ملفاته في وضع Pages.</div>'
+      : session.saveError
+        ? '<div class="diagnostic-alert-banner" style="background:#fff7e7;border:1px solid #efdbad;color:#795a28"><strong>لم تُحفظ الجلسة على الخادم.</strong> ' + safe(session.saveError) + ' احتفظ بهذا الملخص قبل مغادرة الصفحة.</div>'
+        : '<div class="diagnostic-alert-banner" style="background:#eaf7f0;border:1px solid #c7e7d7;color:#2d6c56">تم حفظ ملخص الجلسة. لا تُحفظ إحداثيات النظر الخام أو ملفات الصوت.</div>';
     container.innerHTML = '<div class="results-dashboard fade-in"><div class="results-header"><div><div class="eyebrow">اكتملت مهام الجلسة</div><h2>ملخص القراءة العربية</h2><p>' +
       safe(session.studentName) + ' · الصف ' + safe(session.grade) + ' · مقطعا قراءة</p></div><div class="risk-badge-box"><span class="risk-title">' +
       safe(risk.levelAr || 'ملاحظات وصفية') + '</span><span class="risk-score">لا ينتج النظام درجة خطر تشخيصية</span></div></div>' + saveMessage +
