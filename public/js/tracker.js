@@ -41,6 +41,12 @@ class ArabicEyeTracker {
     try {
       this.cameraError = null;
 
+      // The bundled WebGazer build points to a local ./mediapipe/face_mesh folder,
+      // but those assets are not included in this static deployment. Use a known
+      // compatible, pinned MediaPipe release so camera access and model loading agree.
+      webgazer.params.faceMeshSolutionPath =
+        'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619';
+
       webgazer.params.showVideoPreview = true;
       webgazer.params.showFaceOverlay = true;
       webgazer.params.showFaceFeedbackBox = false;
@@ -83,9 +89,17 @@ class ArabicEyeTracker {
       return true;
     } catch (err) {
       console.error('WebGazer initialization error:', err);
-      this.cameraError = this.formatCameraError(err);
+      // WebGazer can acquire and display the camera stream, then fail while loading
+      // its separate FaceMesh assets. Do not mislabel that as a camera permission failure.
+      const cameraActive = this.isCameraActive();
+      this.cameraError = cameraActive
+        ? 'الكاميرا تعمل، لكن تعذّر تشغيل نموذج تتبّع النظر: ' + (err && (err.message || err.name) || 'خطأ غير معروف') + '. تحقق من اتصال الإنترنت ثم أعد المحاولة.'
+        : this.formatCameraError(err);
       if (this.onCameraStatusChange) {
-        this.onCameraStatusChange({ status: 'error', message: this.cameraError });
+        this.onCameraStatusChange({
+          status: cameraActive ? 'tracking_error' : 'error',
+          message: this.cameraError
+        });
       }
       return false;
     }
