@@ -129,12 +129,28 @@ test('session API saves sanitized gaze and acoustic summaries without raw sample
     assert.equal('audioBytes' in saved.body.readingSegments[0], false);
     assert.equal(saved.body.audioRecorded, false);
     assert.equal(saved.body.riskClassification.score, null);
+    assert.equal(saved.body.readingSegments[0].wordGaze.sampleCoveragePercent, 80);
+    assert.equal(saved.body.readingSegments[0].wordGaze.wordCoveragePercent, 40);
+
+    const uncalibratedPayload = structuredClone(payload);
+    uncalibratedPayload.textId = 'text-c';
+    uncalibratedPayload.textTitle = 'مقطع دون معايرة';
+    uncalibratedPayload.gazeCalibration.passed = false;
+    uncalibratedPayload.readingSegments[0].passageId = 'text-c';
+    uncalibratedPayload.readingSegments[0].hasValidGaze = false;
+    uncalibratedPayload.readingSegments[0].metrics.totalFixations = 0;
+    const uncalibrated = await requestJson('/api/sessions', 'POST', uncalibratedPayload);
+    assert.equal(uncalibrated.status, 201, JSON.stringify(uncalibrated.body));
+    assert.equal(uncalibrated.body.hasValidGaze, false);
+    assert.equal(uncalibrated.body.readingSegments[0].hasValidGaze, false);
+    assert.equal(uncalibrated.body.readingSegments[0].wordGaze.quality, 'insufficient');
 
     const persisted = await requestJson('/api/sessions', 'GET');
     assert.equal(persisted.status, 200);
-    assert.equal(persisted.body.length, 1);
-    assert.equal(persisted.body[0].id, saved.body.id);
-    assert.equal(persisted.body[0].readingSegments[0].wordGaze.perWord[0].wordText, 'المدرسة');
+    assert.equal(persisted.body.length, 2);
+    const persistedOriginal = persisted.body.find(session => session.id === saved.body.id);
+    assert.ok(persistedOriginal);
+    assert.equal(persistedOriginal.readingSegments[0].wordGaze.perWord[0].wordText, 'المدرسة');
   } finally {
     await new Promise(resolve => server.close(resolve));
     delete require.cache[serverPath];
