@@ -23,15 +23,18 @@ class AssessmentSessionManager {
     this.elapsedSeconds = 0;
   }
 
-  startSession(student, text) {
+  async startSession(student, text) {
     this.currentStudent = student;
     this.currentText = text;
     this.rawGazeSamples = [];
     this.comprehensionAnswers = [];
     this.elapsedSeconds = 0;
+    this.calibrationCompleted = false;
+    this.qualityNotice = null;
 
+    // Camera permission is requested only after the user starts a session.
     if (!this.tracker.isStreaming) {
-      this.tracker.initialize();
+      await this.tracker.initialize();
     }
 
     this.renderEnvironmentCheck();
@@ -64,13 +67,13 @@ class AssessmentSessionManager {
 
         <div class="env-status-indicators" style="margin-top: 26px;">
           <div class="status-pill" id="ind-face">
-            <span class="dot"></span> كشف الوجه: جاري الاتصال بالكاميرا...
+            <span class="dot"></span> إشارة النظر: بانتظار أول عينة
           </div>
           <div class="status-pill" id="ind-light">
-            <span class="dot"></span> الإضاءة: جاري قياس السطوع...
+            <span class="dot"></span> سطوع الصورة: بانتظار الكاميرا
           </div>
           <div class="status-pill" id="ind-dist">
-            <span class="dot"></span> المسافة: جاري تقدير المسافة...
+            <span class="dot"></span> المعايرة: لم تبدأ بعد
           </div>
         </div>
 
@@ -109,10 +112,10 @@ class AssessmentSessionManager {
 
       if (env.faceDetected) {
         indFace.className = 'status-pill success';
-        indFace.innerHTML = '<span class="dot"></span> كشف الوجه: تم الرصد بنجاح 🟢';
+        indFace.innerHTML = '<span class="dot"></span> إشارة النظر: وصلت عينة حديثة';
       } else {
-        indFace.className = 'status-pill error';
-        indFace.innerHTML = '<span class="dot"></span> كشف الوجه: لم يتم رصد وجه (يرجى مواجهة الكاميرا) 🔴';
+        indFace.className = 'status-pill warning';
+        indFace.innerHTML = '<span class="dot"></span> إشارة النظر: بانتظار العينة الأولى';
       }
 
       if (env.lighting === 'good') {
@@ -126,8 +129,8 @@ class AssessmentSessionManager {
         indLight.innerHTML = `<span class="dot"></span> الإضاءة: خافتة (${env.realLuma || 20}/255) 🔴`;
       }
 
-      indDist.className = 'status-pill success';
-      indDist.innerHTML = `<span class="dot"></span> المسافة: ~${env.distanceCm} سم (تتغير مع حركتك) 📏`;
+      indDist.className = 'status-pill';
+      indDist.innerHTML = '<span class="dot"></span> تقدير المسافة غير متاح في هذه النسخة';
     };
   }
 
@@ -164,7 +167,7 @@ class AssessmentSessionManager {
       const indFace = document.getElementById('ind-face');
       if (indFace) {
         indFace.className = 'status-pill success';
-        indFace.innerHTML = '<span class="dot"></span> كشف الوجه: الكاميرا متصلة وتبث بنجاح 🟢';
+        indFace.innerHTML = '<span class="dot"></span> الكاميرا متصلة؛ بانتظار إشارة النظر';
       }
     } else {
       if (alertBox) {
@@ -177,6 +180,7 @@ class AssessmentSessionManager {
 
   // تخطي المعايرة والانتقال للنص مباشرة
   skipCalibration() {
+    this.calibrationCompleted = false;
     this.startReading();
   }
 
@@ -200,6 +204,11 @@ class AssessmentSessionManager {
 
   // المرحلة 2: المعايرة التفاعلية (5 نقاط)
   async startCalibration() {
+    if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
+      const container = document.getElementById('assessment-container');
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص إذن الكاميرا أولًا، أو تابع الجلسة دون استخدام مؤشرات النظر. لن نعرض المعايرة على أنها مكتملة قبل تسجيل عيناتها.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع النظر</button></div></div>';
+      return;
+    }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
 
@@ -210,7 +219,7 @@ class AssessmentSessionManager {
         </button>
 
         <div class="calib-instructions">
-          <h3>🌟 لعبة النجم السحري: تابع النجم وانقر عليه 3 مرات لتدريب الذكاء الاصطناعي</h3>
+          <h3>🌟 معايرة تتبع النظر: انظر إلى النجمة وانقر عليها 3 مرات</h3>
           <p id="calib-step-hint">النقطة 1 من 5: المركز - انقر فوق النجمة ⭐ (المتبقي: 3)</p>
         </div>
         <div class="calib-target" id="calib-target" title="انقر هنا">
@@ -258,25 +267,24 @@ class AssessmentSessionManager {
 
           if (clicksDone >= 3) {
             targetEl.removeEventListener('click', handleClick);
-            clearTimeout(autoAdvanceTimeout);
             resolve();
           }
         };
 
         targetEl.addEventListener('click', handleClick);
 
-        // انتقال تلقائي بعد 4 ثوانٍ إذا كان المستخدم ينظر فقط دون نقر
-        const autoAdvanceTimeout = setTimeout(() => {
-          targetEl.removeEventListener('click', handleClick);
-          this.tracker.addCalibrationSample(pt.x, pt.y);
-          resolve();
-        }, 4000);
+
       });
 
       targetEl.classList.remove('pulse');
     }
 
-    this.tracker.computeCalibration();
+    if (!this.tracker.computeCalibration()) {
+      this.stage = 'env_check';
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم تكتمل المعايرة</h2><p>اضغط النجمة ثلاث مرات عند كل نقطة من النقاط الخمس. لن نعرض مسار نظر وكأنه معاير قبل اكتمال الخطوات.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع معاير</button></div></div>';
+      return;
+    }
+    this.calibrationCompleted = true;
 
     container.innerHTML = `
       <div class="assessment-card fade-in text-center">
@@ -317,7 +325,7 @@ class AssessmentSessionManager {
         </div>
 
         <div class="reading-footer-hint" style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 14px;">
-          👁️ تتبع حركة العين حقيقي عبر الكاميرا | النقطة الزرقاء تتحرك مع بؤبؤ عينيك فقط
+          👁️ تقدير اتجاه النظر عبر الكاميرا — الدقة تتأثر بالإضاءة والجهاز والمعايرة
         </div>
       </div>
     `;
@@ -345,11 +353,10 @@ class AssessmentSessionManager {
         t: performance.now(),
         x: boundedX,
         y: boundedY,
-        conf: gaze.conf || 0.95
       });
 
       // رسم المؤشر المباشر تماشياً مع حركة بؤبؤ العين فقط
-      this.visualizer.drawLiveGaze(boundedX, boundedY, gaze.conf || 0.95);
+      this.visualizer.drawLiveGaze(boundedX, boundedY);
     };
 
     // عداد القراءة
@@ -416,6 +423,11 @@ class AssessmentSessionManager {
     showQuestion();
   }
 
+  countWords(text) {
+    const normalized = String(text || '').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
+    return (normalized.match(/[\p{L}\p{N}]+/gu) || []).length;
+  }
+
   // المرحلة 5: معالجة النتائج وتصنيف الخطر
   async processAndShowResults() {
     this.stage = 'results';
@@ -424,18 +436,24 @@ class AssessmentSessionManager {
     container.innerHTML = `
       <div class="assessment-card text-center fade-in">
         <div class="spinner"></div>
-        <h2>جاري استخراج مؤشرات حركة العين وتوليد التقرير المبدئي...</h2>
-        <p>تحليل فترات التثبيت البصري والارتدادات العكسية وفق المعايير المرجعية للصف الدراسي.</p>
+        <h2>جاري تجهيز ملخص الجلسة...</h2>
+        <p>مراجعة جودة الإشارة وإجابات الفهم. لا يُعد هذا التقييم تشخيصًا لعسر القراءة.</p>
       </div>
     `;
 
-    // استخدام عينات حركة العين الفعلية الملتقطة من الكاميرا فقط دون أي تزييف
+    // Keep the observed duration as-is. Short sessions are marked insufficient rather than inflated.
     const samples = this.rawGazeSamples || [];
-    const duration = Math.max(3, this.elapsedSeconds);
-
-    // حساب المقاييس الحقيقية عبر محرك I-VT المعتمد
+    const duration = Math.max(0, this.elapsedSeconds);
+    const observedWordCount = this.countWords(this.currentText.content);
     const metrics = this.metricsEngine.processGazeStream(samples);
-    const hasValidGaze = !!(samples.length >= 8 && metrics.totalFixations >= 2 && metrics.avgFixationDurationMs > 0);
+    const hasValidGaze = !!(
+      this.calibrationCompleted &&
+      this.tracker.isStreaming &&
+      duration >= 10 &&
+      samples.length >= 15 &&
+      metrics.totalFixations >= 2 &&
+      metrics.avgFixationDurationMs > 0
+    );
 
     const correctCount = this.comprehensionAnswers.filter(a => a.isCorrect).length;
     const totalQuestions = Math.max(1, this.comprehensionAnswers.length);
@@ -444,18 +462,21 @@ class AssessmentSessionManager {
     const risk = this.metricsEngine.classifyRisk(
       this.currentStudent.grade,
       duration,
-      this.currentText.wordsCount,
+      observedWordCount,
       metrics,
       correctCount,
       totalQuestions
     );
 
     const sessionPayload = {
+      id: 'pending-' + Date.now(),
+      date: new Date().toISOString(),
       studentId: this.currentStudent.id,
       studentName: this.currentStudent.name,
       grade: this.currentStudent.grade,
       textId: this.currentText.id,
       textTitle: this.currentText.title,
+      observedWordCount,
       durationSeconds: duration,
       wpm: risk.wpm,
       comprehensionScore: correctCount,
@@ -463,16 +484,25 @@ class AssessmentSessionManager {
       metrics: metrics,
       hasValidGaze: hasValidGaze,
       riskClassification: risk,
-      gazeData: metrics.fixations
     };
 
     // حفظ الجلسة محلياً في الخادم
     try {
-      await fetch('/api/sessions', {
+      const response = await fetch('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sessionPayload)
       });
+      if (!response.ok) throw new Error('تعذر حفظ الجلسة (' + response.status + ')');
+      const savedSession = await response.json();
+      // Raw fixation coordinates stay in browser memory only; the API stores summaries.
+      const observedMetrics = sessionPayload.metrics;
+      const observedRisk = sessionPayload.riskClassification;
+      Object.assign(sessionPayload, savedSession);
+      sessionPayload.metrics = observedMetrics;
+      sessionPayload.riskClassification = observedRisk;
+      sessionPayload.hasValidGaze = savedSession.hasValidGaze === true;
+      sessionPayload.riskClassification.hasValidGaze = sessionPayload.hasValidGaze;
       await window.dashboardModule.loadData();
     } catch (err) {
       console.warn('Session sync warning:', err);
@@ -490,12 +520,12 @@ class AssessmentSessionManager {
       <div class="results-dashboard fade-in">
         <div class="results-header">
           <div>
-            <h2>تقرير الفرز المبدئي لمهارات القراءة وتتبع النظر</h2>
+            <h2>ملخص جلسة القراءة</h2>
             <p>الطالب: <strong>${session.studentName}</strong> | الصف: <strong>${session.grade} الابتدائي</strong> | مدة القراءة: <strong>${session.durationSeconds} ثانية</strong></p>
           </div>
           <div class="risk-badge-box" style="border-color:${r.color};">
-            <span class="risk-title" style="color:${r.color};">${r.levelAr}</span>
-            <span class="risk-score">مؤشر الخطر: ${r.score} / 100</span>
+            <span class="risk-title">${r.levelAr}</span>
+            <span class="risk-score">ملاحظات وصفية — ليست تشخيصًا</span>
           </div>
         </div>
 
@@ -503,7 +533,7 @@ class AssessmentSessionManager {
           <div class="diagnostic-alert-banner" style="background:#fffbeb; border:1px solid #f59e0b; padding:16px 20px; border-radius:10px; margin-bottom:20px; color:#92400e; font-size:14px; line-height:1.7;">
             <strong>⚠️ إشعار الشفافية والأمانة العلمية:</strong><br/>
             لم تسجل الكاميرا إشارات كافية لتتبع حركة العين أثناء هذه القراءة (إذن الكاميرا غير مفعل أو غطاء الكاميرا مقفل أو الكاميرا مستخدمة بتطبيق آخر).<br/>
-            للحفاظ على الدقة والمصداقية، <strong>لم يتم رسم أي مسار اصطناعي أو توليد أرقام وهمية</strong>. تم احتساب سرعة القراءة الفعلية (WPM: ${session.wpm} ك/د) ودرجة الفهم (${session.comprehensionScore} من ${session.comprehensionTotal})، بينما تظل مؤشرات التثبيت والارتداد والمسار البصري بانتظار اتصال كاميرا فعال.<br/>
+            للحفاظ على الدقة والمصداقية، <strong>لم يتم رسم أي مسار اصطناعي أو توليد أرقام وهمية</strong>. تم احتساب سرعة القراءة المحسوبة (سرعة القراءة المحسوبة: ${session.wpm == null ? 'غير متاحة' : session.wpm + ' ك/د'}) ودرجة الفهم (${session.comprehensionScore} من ${session.comprehensionTotal})، بينما تظل مؤشرات التثبيت والارتداد والمسار البصري بانتظار اتصال كاميرا فعال.<br/>
             <a href="/camera_test.html" target="_blank" class="btn btn-sm btn-primary" style="display:inline-block; margin-top:10px; text-decoration:none; padding:8px 16px;">📸 افتح صفحة فحص الكاميرا للتأكد من فتح غطاء العدسة والعتاد ↗️</a>
           </div>
         ` : `
@@ -515,14 +545,14 @@ class AssessmentSessionManager {
         <!-- بطاقات المؤشرات الأساسية الحقيقية -->
         <div class="metrics-summary-grid">
           <div class="metric-box">
-            <div class="title">سرعة القراءة الفعلية</div>
-            <div class="val">${session.wpm} <small>كلمة/د</small></div>
-            <div class="sub">المعيار لصفه: ${r.normWpm} ك/د</div>
+            <div class="title">سرعة القراءة المحسوبة</div>
+            <div class="val">${session.wpm == null ? "غير متاحة" : session.wpm} <small>كلمة/د</small></div>
+            <div class="sub">سرعة محسوبة من النص والمدة</div>
           </div>
           <div class="metric-box">
             <div class="title">متوسط مدة التثبيت البصري</div>
             <div class="val">${session.hasValidGaze ? `${m.avgFixationDurationMs} <small>ms</small>` : '<span style="font-size:15px; color:#94a3b8;">غير متاح (لا توجد إشارة)</span>'}</div>
-            <div class="sub">المعيار لصفه: ${r.normFixationMs} ms</div>
+            <div class="sub">مؤشر وصفي غير تشخيصي</div>
           </div>
           <div class="metric-box">
             <div class="title">نسبة الارتدادات العكسية</div>
@@ -568,7 +598,7 @@ class AssessmentSessionManager {
         <!-- الإجراءات اللاحقة -->
         <div class="results-actions">
           <button class="btn btn-primary" onclick="window.assessmentManager.openParentReport()">📄 عرض وتصدير تقرير ولي الأمر (PDF)</button>
-          <button class="btn btn-secondary" onclick="window.dashboardModule.openInterventionForStudent('${r.level === 'high' ? 'dots' : 'saccades'}')">🎯 بدء تمارين التدخل المقترحة</button>
+          <button class="btn btn-secondary" onclick="window.dashboardModule.openInterventionForStudent('saccades')">🎯 بدء تمارين التدخل المقترحة</button>
           <button class="btn btn-outline" onclick="window.appRouter.navigate('dashboard')">العودة للوحة التحكم</button>
         </div>
       </div>

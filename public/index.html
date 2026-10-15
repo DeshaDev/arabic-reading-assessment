@@ -1,78 +1,76 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>منصة القارئ الذكي | التقييم المبكر لمهارات القراءة وتتبع النظر</title>
-  <!-- خطوط عربية حديثة وعالية الوضوح للأطفال والمعلمين -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142a3b">
+  <meta name="description" content="منصة تجريبية لدعم تقييم مهارات القراءة العربية ومراجعة ملاحظات الجلسات التعليمية.">
+  <title>نَبراس | قراءة أوضح، دعم أبكر</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
-
-  <!-- مكتبة WebGazer.js مفتوحة المصدر لتتبع حركة العين عبر كاميرا الويب -->
   <script src="js/webgazer.js"></script>
 </head>
 <body>
   <div class="app-layout">
-    <!-- الشريط الجانبي (Sidebar) -->
-    <aside class="sidebar">
-      <div class="sidebar-brand">
-        <span class="brand-icon">👁️</span>
-        <div>
-          <h2>القارئ الذكي</h2>
-          <small>فرز صعوبات القراءة بالذكاء الاصطناعي</small>
-        </div>
-      </div>
+    <aside class="sidebar" aria-label="التنقل الرئيسي">
+      <a class="sidebar-brand" href="#" aria-label="نبراس، الصفحة الرئيسية" onclick="window.appRouter.navigate('dashboard');return false;">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 44 44" fill="none"><path d="M4.5 22s6.2-10.5 17.5-10.5S39.5 22 39.5 22 33.3 32.5 22 32.5 4.5 22 4.5 22Z" stroke="currentColor" stroke-width="2.5"/><circle cx="22" cy="22" r="6.5" stroke="currentColor" stroke-width="2.5"/><path d="M22 18.5v7M18.5 22h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </span>
+        <span class="brand-copy"><strong>نَبراس</strong><small>مختبر القراءة العربية</small></span>
+      </a>
 
+      <div class="workspace-label">مساحة العمل</div>
       <nav class="sidebar-nav">
-        <a href="javascript:void(0)" class="nav-link active" data-view="dashboard">
-          <span class="icon">📊</span>
-          <span>لوحة التحكم المدرسية</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" data-view="assessment">
-          <span class="icon">⚡</span>
-          <span>جلسة فحص جديدة</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" data-view="texts">
-          <span class="icon">📚</span>
-          <span>بنك النصوص المعيارية</span>
-        </a>
-        <a href="javascript:void(0)" class="nav-link" data-view="intervention">
-          <span class="icon">🎯</span>
-          <span>تمارين التدخل والتدريب</span>
-        </a>
+        <a href="#dashboard" class="nav-link active" data-view="dashboard"><span class="nav-icon" aria-hidden="true">⌂</span><span>نظرة عامة</span></a>
+        <a href="#assessment" class="nav-link" data-view="assessment"><span class="nav-icon" aria-hidden="true">◉</span><span>جلسة تقييم جديدة</span><span class="nav-shortcut">+</span></a>
+        <a href="#texts" class="nav-link" data-view="texts"><span class="nav-icon" aria-hidden="true">▤</span><span>مكتبة النصوص</span></a>
+        <a href="#intervention" class="nav-link" data-view="intervention"><span class="nav-icon" aria-hidden="true">✳</span><span>أنشطة الدعم القرائي</span></a>
       </nav>
 
+      <div class="sidebar-spacer"></div>
+      <section class="sidebar-support">
+        <div class="support-symbol" aria-hidden="true">i</div>
+        <strong>أداة تربوية قيد التطوير</strong>
+        <p>تعرض نتائج وصفية للمراجعة، ولا تشخّص عسر القراءة.</p>
+      </section>
       <div class="sidebar-footer">
-        <div class="user-pill">
-          <div class="user-avatar">س</div>
-          <div>
-            <strong>أ. سارة المنصور</strong>
-            <small>أخصائية صعوبات التعلم</small>
-          </div>
-        </div>
+        <span class="footer-dot"></span>
+        <span>نسخة تجريبية · Prototype</span>
       </div>
     </aside>
 
-    <!-- المحتوى الرئيسي (Main Content Area) -->
     <main class="main-content">
-      <div id="main-view-container">
-        <!-- يتم رندرة الشاشات ديناميكياً هنا -->
+      <header class="topbar">
+        <div class="breadcrumb"><span>مساحة المدرسة</span><span class="breadcrumb-slash">/</span><strong id="topbar-section">نظرة عامة</strong></div>
+        <div class="topbar-actions">
+          <span class="pilot-pill"><span></span> وضع تجريبي</span>
+          <button class="topbar-help" type="button" onclick="document.getElementById('pilot-info').classList.toggle('open')" aria-label="معلومات عن النسخة التجريبية">؟</button>
+        </div>
+      </header>
+
+      <div id="pilot-info" class="pilot-info" role="note">
+        هذه النسخة مناسبة للتجربة التقنية فقط. معايير التصنيف لم تُثبت سريريًا، ونتائج الكاميرا لا تُعد تشخيصًا أو معيارًا معتمدًا لعسر القراءة.
+        <button type="button" class="inline-close" onclick="document.getElementById('pilot-info').classList.remove('open')">إغلاق</button>
+      </div>
+      <div id="main-view-container" aria-live="polite">
+        <div class="loading-state"><span class="loading-spinner"></span><p>جاري تجهيز مساحة العمل…</p></div>
       </div>
     </main>
-
   </div>
 
-  <!-- النافذة المنبثقة العامة (Modal) لعرض التقارير وإضافة الطلاب -->
-  <div id="app-modal" class="modal-backdrop">
+  <div id="app-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-heading">
     <div class="modal-card">
-      <button class="modal-close-btn" onclick="window.dashboardModule.closeModal()">✕</button>
+      <button class="modal-close-btn" type="button" onclick="window.dashboardModule.closeModal()" aria-label="إغلاق النافذة">×</button>
       <div id="modal-content"></div>
     </div>
   </div>
 
-  <!-- ملفات الجافاسكريبت بالترتيب الصحيح -->
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="js/assessment-protocol.js"></script>
   <script src="js/texts.js"></script>
   <script src="js/metrics.js"></script>
   <script src="js/tracker.js"></script>
@@ -80,6 +78,7 @@
   <script src="js/report.js"></script>
   <script src="js/intervention.js"></script>
   <script src="js/assessment.js"></script>
+  <script src="js/assessment-enhancements.js"></script>
   <script src="js/dashboard.js"></script>
   <script src="js/app.js"></script>
 </body>

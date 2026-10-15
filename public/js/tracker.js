@@ -15,9 +15,11 @@ class ArabicEyeTracker {
     this.environment = { faceDetected: false, lighting: 'good', realLuma: 110, distanceCm: 52 };
     this.calibrationClicks = 0;
     this.envInterval = null;
+    this.styleInterval = null;
   }
 
   async initialize() {
+    if (this.isStreaming && this.isCameraActive()) return true;
     if (typeof webgazer === 'undefined') {
       console.error('WebGazer library not loaded');
       this.cameraError = 'مكتبة WebGazer غير متوفرة';
@@ -38,7 +40,7 @@ class ArabicEyeTracker {
           if (data == null) return;
           this.handleRawGaze(data.x, data.y);
         })
-        .saveDataAcrossSessions(true);
+        .saveDataAcrossSessions(false);
 
       // بدء تشغيل الكاميرا وتيار الفيديو مباشرة دون إغلاق مسبق
       await webgazer.begin();
@@ -53,7 +55,8 @@ class ArabicEyeTracker {
 
       // تنسيق موقع نافذة كاميرا WebGazer لتظهر في أسفل يسار الشاشة بأناقة دون حجب الأزرار
       this.styleWebGazerElements();
-      setInterval(() => this.styleWebGazerElements(), 1000);
+      if (this.styleInterval) clearInterval(this.styleInterval);
+      this.styleInterval = setInterval(() => this.styleWebGazerElements(), 1000);
 
       this.isStreaming = true;
       this.isTracking = true;
@@ -123,36 +126,13 @@ class ArabicEyeTracker {
       }
       const realLuma = Math.round(sumLuma / count);
 
-      // 2. كشف الوجه وتحديد أبعاده في الإطار
-      let skinPixels = 0;
-      let minX = 160, maxX = 0, minY = 120, maxY = 0;
-
-      for (let y = 10; y < 110; y += 4) {
-        for (let x = 15; x < 145; x += 4) {
-          const idx = (y * 160 + x) * 4;
-          const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-          if (r > 55 && g > 35 && b > 20 && r > b && (r - g) > 4) {
-            skinPixels++;
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (y < minY) minY = y;
-            if (y > maxY) maxY = y;
-          }
-        }
-      }
-
-      const faceDetected = skinPixels > 30;
-      const faceWidth = Math.max(8, maxX - minX);
-
-      // 3. حساب المسافة الحقيقية بالسنتيمتر ديناميكياً مع حركة رأس المستخدم
-      // إذا اقترب المستخدم يزيد عرض الوجه وتقل المسافة، والعكس صحيح
-      const realDistCm = Math.round(Math.max(35, Math.min(85, (52 / faceWidth) * 75)));
-
+      // لا نستنتج الوجه أو المسافة من لون البشرة؛ ذلك غير موثوق عبر الكاميرات والإضاءات.
+      // نعرض فقط وجود عينة نظر حديثة، وسطوع الصورة التقريبي.
+      const recentGazeSignal = Boolean(this.currentGaze && performance.now() - (this.currentGaze.t || 0) < 2000);
       this.environment = {
-        faceDetected,
+        faceDetected: recentGazeSignal,
         lighting: realLuma > 65 ? 'good' : (realLuma > 30 ? 'moderate' : 'poor'),
-        realLuma,
-        distanceCm: realDistCm
+        realLuma
       };
 
       if (this.onEnvironmentCheck) {
@@ -202,7 +182,6 @@ class ArabicEyeTracker {
     this.currentGaze = {
       x: Math.round(x),
       y: Math.round(y),
-      conf: 0.95,
       t: performance.now()
     };
 
@@ -213,19 +192,24 @@ class ArabicEyeTracker {
 
   addCalibrationSample(targetX, targetY) {
     return new Promise(resolve => {
-      if (typeof webgazer !== 'undefined' && webgazer.recordScreenPosition) {
-        // تسجيل نقرة المعايرة لتدريب نموذج التراجع
-        for (let i = 0; i < 5; i++) {
-          webgazer.recordScreenPosition(targetX, targetY, 'click');
-        }
-        this.calibrationClicks++;
+      if (!this.isStreaming || typeof webgazer === 'undefined' || typeof webgazer.recordScreenPosition !== 'function') {
+        resolve(false);
+        return;
       }
-      setTimeout(() => resolve(true), 150);
+      try {
+        for (let i = 0; i < 5; i++) webgazer.recordScreenPosition(targetX, targetY, 'click');
+        this.calibrationClicks++;
+        setTimeout(() => resolve(true), 150);
+      } catch (err) {
+        console.warn('Calibration sample was not recorded:', err);
+        resolve(false);
+      }
     });
   }
 
   computeCalibration() {
-    return true;
+    // Five distinct targets × three deliberate clicks. No automatic pass-through.
+    return this.calibrationClicks >= 15;
   }
 
   resetCalibration() {
@@ -233,6 +217,31 @@ class ArabicEyeTracker {
       webgazer.clearData();
     }
     this.calibrationClicks = 0;
+  }
+
+  shutdown() {
+    if (this.envInterval) clearInterval(this.envInterval);
+    if (this.styleInterval) clearInterval(this.styleInterval);
+    this.envInterval = null;
+    this.styleInterval = null;
+    this.onGazePoint = null;
+    this.onEnvironmentCheck = null;
+    this.isTracking = false;
+    this.isStreaming = false;
+    try {
+      if (typeof webgazer !== 'undefined' && typeof webgazer.end === 'function') {
+        const result = webgazer.end();
+        if (result && typeof result.catch === 'function') result.catch(err => console.warn('WebGazer shutdown warning:', err));
+      } else if (typeof webgazer !== 'undefined' && typeof webgazer.pause === 'function') {
+        webgazer.pause();
+      }
+    } catch (err) {
+      console.warn('WebGazer shutdown warning:', err);
+    }
+    const video = document.getElementById('webgazerVideoFeed');
+    if (video && video.srcObject && typeof video.srcObject.getTracks === 'function') {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
   }
 
   pause() {
