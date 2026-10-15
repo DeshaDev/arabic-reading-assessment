@@ -903,12 +903,21 @@
       insertion: 'كلمة إضافية في التفريغ',
       repetition: 'تكرار محتمل في التفريغ'
     };
+    const segment = this.lastSession && this.lastSession.visualSegments && this.lastSession.visualSegments[index];
+    const gazeSummary = segment && segment.wordGaze && segment.wordGaze.quality === 'observed' ? segment.wordGaze : null;
+    const gazePerWord = gazeSummary && Array.isArray(gazeSummary.perWord) ? gazeSummary.perWord : [];
     const differences = (alignment.operations || []).filter(item => item.type !== 'match').slice(0, 80);
     const differenceMarkup = differences.length
-      ? '<ul class="asr-difference-list">' + differences.map(item =>
-        '<li class="asr-difference asr-' + safe(item.type) + '"><strong>' + safe(labels[item.type] || 'فرق محتمل') +
-        '</strong><span>النص: ' + safe(item.targetWord || '—') + '</span><span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span></li>'
-      ).join('') + '</ul>'
+      ? '<ul class="asr-difference-list">' + differences.map(item => {
+        const gazeAtWord = gazePerWord.find(gazeWord => Number(gazeWord.wordIndex) === Number(item.targetIndex));
+        const gazeContext = gazeAtWord
+          ? '<span class="asr-gaze-context">إشارة نظر منفصلة لهذه الكلمة: ' + Math.round(Number(gazeAtWord.totalDwellMs) || 0) +
+            ' ms إجماليًا عبر ' + (Number(gazeAtWord.visitCount) || 0) + ' زيارات مستقرة. هذا تزامن سياقي تقريبي وليس دليلًا على سبب الاختلاف.</span>'
+          : '';
+        return '<li class="asr-difference asr-' + safe(item.type) + '"><strong>' + safe(labels[item.type] || 'فرق محتمل') +
+          '</strong><span>النص: ' + safe(item.targetWord || '—') + '</span><span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span>' +
+          gazeContext + '</li>';
+      }).join('') + '</ul>'
       : '<p class="asr-no-differences">لم يرصد التطابق النصي اختلافًا واضحًا. هذا لا يثبت خلو القراءة من الأخطاء؛ فقد يصحح محرك التفريغ بعض الكلمات تلقائيًا.</p>';
     const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
     output.innerHTML = '<div class="asr-result-heading"><span class="badge-info">اقتراح آلي · يحتاج مراجعة</span><strong>' + safe(analysis.passageTitle || 'تحليل القراءة الجهرية') + '</strong></div>' +
