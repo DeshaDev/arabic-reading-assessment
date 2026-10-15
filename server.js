@@ -48,20 +48,21 @@ function writeDatabase(data) {
 
 // REST endpoints. This server is a local prototype, not a production student-data service.
 app.get('/api/health', (req, res) => {
+  const transcriptionConfig = getTranscriptionConfig();
   res.json({
     status: 'ok',
     service: 'Nebras Arabic Reading Assessment Prototype',
-    version: '1.3.0',
+    version: '1.4.0',
     mode: 'prototype',
-    automaticSpeechAnalysisEnabled: getTranscriptionConfig().apiKeyAvailable,
+    automaticSpeechAnalysisEnabled: transcriptionConfig.apiKeyAvailable,
     wordLevelGazeSummaryEnabled: true,
     independentCalibrationValidationEnabled: true,
-    transcriptionModel: getTranscriptionConfig().transcriptionModel,
-    wordTimestampAnalysisEnabled: getTranscriptionConfig().wordTimestampAnalysisEnabled,
-    wordTimestampModel: getTranscriptionConfig().wordTimestampModel,
-    wordTimestampModelIsLegacy: getTranscriptionConfig().wordTimestampModelIsLegacy,
-    wordTimestampModelRemovalDate: getTranscriptionConfig().wordTimestampModelRemovalDate,
-    wordTimestampDisabledReason: getTranscriptionConfig().timestampDisabledReason,
+    transcriptionModel: transcriptionConfig.transcriptionModel,
+    wordTimestampAnalysisEnabled: transcriptionConfig.wordTimestampAnalysisEnabled,
+    wordTimestampModel: transcriptionConfig.wordTimestampModel,
+    wordTimestampModelIsLegacy: transcriptionConfig.wordTimestampModelIsLegacy,
+    wordTimestampModelRemovalDate: transcriptionConfig.wordTimestampModelRemovalDate,
+    wordTimestampDisabledReason: transcriptionConfig.timestampDisabledReason,
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -350,7 +351,8 @@ const audioBodyParser = express.raw({
 
 app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  if (!process.env.OPENAI_API_KEY) {
+  const transcriptionConfig = getTranscriptionConfig();
+  if (!transcriptionConfig.apiKeyAvailable) {
     return res.status(503).json({
       error: 'التحليل الآلي غير مفعّل على الخادم. اضبط متغير البيئة OPENAI_API_KEY ثم أعد تشغيله.'
     });
@@ -359,13 +361,14 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
   const now = Date.now();
   const requester = req.ip || req.socket.remoteAddress || 'unknown';
   const windowState = transcriptionRequests.get(requester);
+  const providerCallCost = transcriptionConfig.wordTimestampAnalysisEnabled ? 2 : 1;
   if (!windowState || now - windowState.startedAt > 60_000) {
-    transcriptionRequests.set(requester, { startedAt: now, count: 1 });
+    transcriptionRequests.set(requester, { startedAt: now, count: providerCallCost });
   } else {
-    windowState.count++;
-    if (windowState.count > 8) {
-      return res.status(429).json({ error: 'تم بلوغ حد طلبات التحليل المؤقت. انتظر دقيقة ثم أعد المحاولة.' });
+    if (windowState.count + providerCallCost > 8) {
+      return res.status(429).json({ error: 'تم بلوغ حد طلبات مزوّد الصوت المؤقت. أوقف التوقيت الإضافي أو انتظر دقيقة قبل المحاولة مجددًا.' });
     }
+    windowState.count += providerCallCost;
   }
   if (transcriptionRequests.size > 1000) {
     for (const [ip, value] of transcriptionRequests) {
@@ -399,7 +402,6 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
     'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/flac': 'flac',
     'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a'
   };
-  const transcriptionConfig = getTranscriptionConfig();
   const model = transcriptionConfig.transcriptionModel;
 
   try {
