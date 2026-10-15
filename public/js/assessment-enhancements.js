@@ -543,7 +543,7 @@
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
     const wordCount = window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content);
-    const displayWords = String(this.currentText.content || '').match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || [];
+    const displayWords = window.ReadingAssessmentProtocol.tokenizeArabicWords(this.currentText.content).map(token => token.word);
     const wordGaze = window.ReadingAssessmentProtocol.summarizeWordGaze(samples, wordCount);
     wordGaze.perWord = wordGaze.perWord.map(item => Object.assign({}, item, { wordText: displayWords[item.wordIndex] || '' }));
     const hasValidGaze = !!(this.calibrationCompleted && this.tracker.isStreaming && durationSeconds >= 10 &&
@@ -854,7 +854,7 @@
           '<p class="text-muted">' + safe(acoustic.note || 'هذه فترات انخفاض طاقة صوتية وليست أخطاء أو ترددات مؤكدة.') + '</p></div>'
         : (acoustic.note ? '<div class="acoustic-analysis-card"><strong>تعذر تحليل فترات الصوت محليًا</strong><p class="text-muted">' + safe(acoustic.note) + '</p></div>' : '');
       const wordGaze = segment.wordGaze || {};
-      const indexedWords = String(segment.content || '').match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || [];
+      const indexedWords = window.ReadingAssessmentProtocol.tokenizeArabicWords(segment.content).map(token => token.word);
       const topDwell = (Array.isArray(wordGaze.perWord) ? wordGaze.perWord : [])
         .slice()
         .sort((a, b) => Number(b.totalDwellMs || 0) - Number(a.totalDwellMs || 0))
@@ -954,24 +954,21 @@
     const perWord = Array.isArray(wordGaze && wordGaze.perWord) ? wordGaze.perWord : [];
     const dwellMap = new Map(perWord.map(item => [Number(item.wordIndex), Math.max(0, Number(item.totalDwellMs) || 0)]));
     const maxDwell = perWord.reduce((max, item) => Math.max(max, Number(item.totalDwellMs) || 0), 0);
-    const wordPattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
+    const tokens = window.ReadingAssessmentProtocol.tokenizeArabicWords(source);
     let html = '';
     let lastIndex = 0;
-    let wordIndex = 0;
-    let match;
-    while ((match = wordPattern.exec(source)) !== null) {
-      html += this.escapeHtml(source.slice(lastIndex, match.index));
-      const dwell = dwellMap.get(wordIndex) || 0;
+    tokens.forEach(token => {
+      html += this.escapeHtml(source.slice(lastIndex, token.start));
+      const dwell = dwellMap.get(token.index) || 0;
       let heatClass = 'gaze-heat-unseen';
       if (dwell > 0 && maxDwell > 0) {
         const ratio = dwell / maxDwell;
         heatClass = ratio >= 0.66 ? 'gaze-heat-high' : ratio >= 0.33 ? 'gaze-heat-medium' : 'gaze-heat-low';
       }
-      html += '<span class="' + heatClass + '" title="الكلمة ' + (wordIndex + 1) + ' · زمن النظر التراكمي المقدر ' + Math.round(dwell) + ' مللي ثانية">' +
-        this.escapeHtml(match[0]) + '</span>';
-      wordIndex++;
-      lastIndex = wordPattern.lastIndex;
-    }
+      html += '<span class="' + heatClass + '" title="الكلمة ' + (token.index + 1) + ' · زمن النظر التراكمي المقدر ' + Math.round(dwell) + ' مللي ثانية">' +
+        this.escapeHtml(token.word) + '</span>';
+      lastIndex = token.end;
+    });
     html += this.escapeHtml(source.slice(lastIndex));
     return html;
   };
