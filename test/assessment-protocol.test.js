@@ -20,7 +20,7 @@ test('does not calculate WPM from too-short or implausible sessions', () => {
 test('builds a 36-cell Arabic rapid naming task from letters only', () => {
   const ran = createRapidNamingSequence(() => 0.5);
   assert.equal(ran.length, 36);
-  assert.ok(ran.every(letter => /^[\\u0621-\\u064A]$/.test(letter)));
+  assert.ok(ran.every(letter => /^[ء-ي]$/.test(letter)));
 });
 
 test('summarizes two passages using combined reading time and word counts', () => {
