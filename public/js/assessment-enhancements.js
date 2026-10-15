@@ -281,7 +281,7 @@
       this.renderGazeTargetText(this.currentText.content) + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
       (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in"> تسجيل محلي اختياري للصوت. لن يُرسل للتحليل الآلي إلا بموافقة منفصلة في شاشة النتائج</label></div>' : '') +
       '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء إضافية غير محددة على الكلمات</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">حذف إضافي غير محدد</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية إضافية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
-      '<p class="text-muted">المعلم هو من يدوّن هذه الملاحظات؛ لا يستنتجها النظام تلقائيًا.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
+      '<p class="text-muted">هذه ملاحظات يدوية إضافية. يمكن للنظام تحليل التسجيل اختياريًا بعد انتهاء الجلسة، وتظل الفروق الآلية بحاجة إلى مراجعة.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
     const wrapper = document.getElementById('reading-wrapper');
     const canvas = document.getElementById('live-gaze-canvas');
     this.visualizer.canvas = canvas;
@@ -469,7 +469,7 @@
         this.escapeHtml(token) + '</button>';
     }).join('');
     container.innerHTML = '<div class="assessment-card fade-in"><div class="step-indicator">مراجعة قراءة المقطع ' + (passageIndex + 1) + ' من 2 · ملاحظات المعلم</div>' +
-      '<h2>علّم الكلمات التي لاحظت فيها تعثرًا</h2><p>هذه المراجعة اختيارية ويجريها المعلم بعد القراءة؛ لا يحلل النظام نطق الطفل تلقائيًا. اختر نوع الملاحظة ثم انقر الكلمة. الكلمات المعلّمة ليست تشخيصًا.</p>' +
+      '<h2>علّم الكلمات التي لاحظت فيها تعثرًا</h2><p>هذه المراجعة اليدوية اختيارية وتكمل التحليل الآلي للتفريغ الصوتي المتاح في شاشة النتائج. اختر نوع الملاحظة ثم انقر الكلمة؛ قد يخطئ التفريغ في فهم الطفل، لذلك لا تُعد أي علامة آلية خطأ قراءة مؤكدًا.</p>' +
       '<div class="teacher-mark-toolbar"><span>نوع الملاحظة:</span>' +
       '<button type="button" class="btn btn-sm mark-type active" data-mark-type="substitution">خطأ / استبدال</button>' +
       '<button type="button" class="btn btn-sm mark-type" data-mark-type="omission">حذف</button>' +
