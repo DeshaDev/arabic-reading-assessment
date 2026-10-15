@@ -233,8 +233,8 @@ class ArabicEyeTracker {
   }
 
   computeCalibration() {
-    // Five distinct targets × three deliberate clicks. No automatic pass-through.
-    return this.calibrationClicks >= 15;
+    // Nine distinct targets × three deliberate clicks. Independent gaze validation follows.
+    return this.calibrationClicks >= 27;
   }
 
   resetCalibration() {
