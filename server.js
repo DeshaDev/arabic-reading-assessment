@@ -424,6 +424,13 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
   const transcript = typeof body.transcript === 'string' ? body.transcript.trim() : '';
   const referenceText = typeof body.referenceText === 'string' ? body.referenceText.trim() : '';
   const model = typeof body.model === 'string' ? body.model.slice(0, 100) : 'unknown';
+  const timestampModel = typeof body.timestampModel === 'string' ? body.timestampModel.slice(0, 100) : null;
+  const timedWords = Array.isArray(body.timedWords) ? body.timedWords.slice(0, 1200).map(item => ({
+    word: item && typeof item.word === 'string' ? item.word.slice(0, 80) : '',
+    start: Number(item && item.start),
+    end: Number(item && item.end)
+  })).filter(item => item.word && Number.isFinite(item.start) && Number.isFinite(item.end) &&
+    item.start >= 0 && item.end >= item.start && item.end <= 1800) : [];
 
   if (![0, 1].includes(passageIndex) || !passageId) {
     return res.status(400).json({ error: 'بيانات المقطع غير صالحة.' });
@@ -441,8 +448,14 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
   }
 
   let alignment;
+  let timedAlignment = null;
+  let crossModelWordErrorRate = null;
   try {
     alignment = alignReadingTranscript(referenceText, transcript);
+    if (timedWords.length && timestampModel === 'whisper-1') {
+      timedAlignment = alignTimedTranscriptToReference(referenceText, timedWords);
+      crossModelWordErrorRate = alignReadingTranscript(transcript, timedWords.map(item => item.word).join(' ')).wordErrorRate;
+    }
   } catch (error) {
     return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ.' });
   }
@@ -452,8 +465,11 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
     passageTitle: passageIndex === 0 ? session.textTitle : session.secondTextTitle,
     transcript: transcript,
     model: model,
+    timestampModel: timedAlignment ? timestampModel : null,
     analyzedAt: new Date().toISOString(),
     alignment: alignment,
+    timedAlignment: timedAlignment,
+    crossModelWordErrorRate: crossModelWordErrorRate,
     note: 'مقارنة أولية بين التفريغ الآلي والنص المرجعي؛ قد تمثل بعض الفروق أخطاء تعرف صوتي ولا تُعد أخطاء قراءة مؤكدة.'
   };
   if (!Array.isArray(session.readingAnalyses)) session.readingAnalyses = [];
