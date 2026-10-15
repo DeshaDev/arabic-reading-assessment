@@ -444,7 +444,7 @@
       '</ul><ul><li>أخطاء القراءة: ' + (Number(session.teacherMarkedErrors) || 0) + ' · الحذف: ' + (Number(session.omissions) || 0) + ' · التصحيح الذاتي: ' +
       (Number(session.selfCorrections) || 0) + '.</li><li>القراءة باستقلال: ' + (session.readingIndependently === true ? 'نعم' : session.readingIndependently === false ? 'لا' : 'غير محدد') +
       ' · المساعدة: ' + safe(session.assistanceType || 'غير محددة') + '.</li></ul>' + (session.teacherNotes ? '<p><strong>ملاحظة المعلم:</strong> ' + safe(session.teacherNotes) + '</p>' : '') + '</section>' +
-      '<div class="results-actions"><button class="btn btn-primary" onclick="window.assessmentManager.openParentReport()">عرض / طباعة تقرير الجلسة</button><button class="btn btn-secondary" onclick="window.appRouter.navigate(\'intervention\\')">أنشطة القراءة</button><button class="btn btn-outline" onclick="window.appRouter.navigate(\'dashboard\\')">العودة إلى لوحة المدرسة</button></div></div>';
+      '<div class="results-actions"><button class="btn btn-primary" onclick="window.assessmentManager.openParentReport()">عرض / طباعة تقرير الجلسة</button><button class="btn btn-secondary" onclick="window.appRouter.navigate(&quot;intervention&quot;)">أنشطة القراءة</button><button class="btn btn-outline" onclick="window.appRouter.navigate(&quot;dashboard&quot;)">العودة إلى لوحة المدرسة</button></div></div>';
     this.visualPassageIndex = 0;
     this.visualMode = 'scanpath';
     const wrapper = document.getElementById('replay-wrapper');
