@@ -934,6 +934,76 @@
     return html;
   };
 
+  proto.summarizeSpeechGazeCorrelation = function (segment, alignment, wordTimestamps) {
+    const samples = Array.isArray(segment && segment.gazeSamples) ? segment.gazeSamples : [];
+    const timestamps = Array.isArray(wordTimestamps) ? wordTimestamps : [];
+    const operations = alignment && Array.isArray(alignment.operations) ? alignment.operations : [];
+    const offsetMs = Math.max(0, Number(segment && segment.audioOffsetSeconds) || 0) * 1000;
+    return operations.filter(operation => operation.type !== 'match').slice(0, 80).map(operation => {
+      const timestamp = timestamps.find(item =>
+        Number(item.transcriptIndex) === Number(operation.transcriptIndex) &&
+        item.timingQuality === 'cross-model-agreement' &&
+        Number.isFinite(Number(item.startSeconds)) &&
+        Number.isFinite(Number(item.endSeconds)) &&
+        Number(item.endSeconds) > Number(item.startSeconds)
+      );
+      const base = {
+        type: operation.type,
+        targetIndex: Number.isInteger(Number(operation.targetIndex)) ? Number(operation.targetIndex) : null,
+        transcriptIndex: Number.isInteger(Number(operation.transcriptIndex)) ? Number(operation.transcriptIndex) : null,
+        timingAvailable: false,
+        quality: 'insufficient',
+        audioStartSeconds: null,
+        audioEndSeconds: null,
+        gazeSampleCount: 0,
+        mappedGazeSampleCount: 0,
+        targetWordSampleCount: 0,
+        targetWordGazePercent: null,
+        dominantGazeWordIndex: null,
+        dominantGazeWordSharePercent: null
+      };
+      if (!timestamp) return base;
+      base.timingAvailable = true;
+      base.audioStartSeconds = Math.round(Number(timestamp.startSeconds) * 1000) / 1000;
+      base.audioEndSeconds = Math.round(Number(timestamp.endSeconds) * 1000) / 1000;
+      const startMs = Number(timestamp.startSeconds) * 1000 - offsetMs;
+      const endMs = Number(timestamp.endSeconds) * 1000 - offsetMs;
+      if (endMs <= 0 || endMs <= startMs) return base;
+      const inWindow = samples.filter(sample => {
+        const t = Number(sample && sample.segmentT);
+        return Number.isFinite(t) && t >= Math.max(0, startMs) && t <= endMs;
+      });
+      base.gazeSampleCount = inWindow.length;
+      const mapped = inWindow.filter(sample => Number.isInteger(Number(sample.wordIndex)) &&
+        Number(sample.wordIndex) >= 0 && Number(sample.wordIndex) < Number(segment.wordCount || 0));
+      base.mappedGazeSampleCount = mapped.length;
+      const targetIndex = Number(operation.targetIndex);
+      base.targetWordSampleCount = mapped.filter(sample => Number(sample.wordIndex) === targetIndex).length;
+      base.targetWordGazePercent = mapped.length
+        ? Math.round(base.targetWordSampleCount / mapped.length * 1000) / 10
+        : null;
+      const counts = new Map();
+      mapped.forEach(sample => {
+        const wordIndex = Number(sample.wordIndex);
+        counts.set(wordIndex, (counts.get(wordIndex) || 0) + 1);
+      });
+      let dominant = null;
+      let dominantCount = 0;
+      counts.forEach((count, wordIndex) => {
+        if (count > dominantCount) {
+          dominant = wordIndex;
+          dominantCount = count;
+        }
+      });
+      base.dominantGazeWordIndex = dominant;
+      base.dominantGazeWordSharePercent = mapped.length
+        ? Math.round(dominantCount / mapped.length * 1000) / 10
+        : null;
+      base.quality = inWindow.length >= 3 && mapped.length >= 2 ? 'observed' : 'insufficient';
+      return base;
+    });
+  };
+
   proto.renderAutomatedReadingAnalysis = function (index, analysis) {
     const output = document.getElementById('asr-output-' + index);
     if (!output || !analysis) return;
@@ -949,23 +1019,53 @@
     const segment = this.lastSession && this.lastSession.visualSegments && this.lastSession.visualSegments[index];
     const gazeSummary = segment && segment.wordGaze && segment.wordGaze.quality === 'observed' ? segment.wordGaze : null;
     const gazePerWord = gazeSummary && Array.isArray(gazeSummary.perWord) ? gazeSummary.perWord : [];
+    const timestampAlignment = analysis.timestampAlignment || {};
+    const speechGazeContext = Array.isArray(analysis.speechGazeContext) ? analysis.speechGazeContext : [];
+    const timestampSummaryMarkup = timestampAlignment.enabled
+      ? '<p class="asr-timestamp-summary">توقيتات كلمات اتفق عليها التفريغان: ' + (Number(timestampAlignment.matchedWordCount) || 0) +
+        ' من ' + (Number(timestampAlignment.transcriptWordCount) || 0) + ' (' + (Number(timestampAlignment.coveragePercent) || 0) +
+        '%). محرك التوقيت: ' + safe(timestampAlignment.model || 'whisper-1') + '.</p>'
+      : '<p class="asr-timestamp-summary">توقيتات الكلمات معطلة على الخادم؛ لا تتوفر مزامنة صوتية مستقلة لهذه النتيجة.</p>';
+    const formatTimestamp = seconds => {
+      const value = Math.max(0, Number(seconds) || 0);
+      return Math.floor(value / 60) + ':' + (value % 60).toFixed(2).padStart(5, '0');
+    };
     const differences = (alignment.operations || []).filter(item => item.type !== 'match').slice(0, 80);
     const differenceMarkup = differences.length
       ? '<ul class="asr-difference-list">' + differences.map(item => {
         const gazeAtWord = gazePerWord.find(gazeWord => Number(gazeWord.wordIndex) === Number(item.targetIndex));
         const gazeContext = gazeAtWord
-          ? '<span class="asr-gaze-context">إشارة نظر منفصلة لهذه الكلمة: ' + Math.round(Number(gazeAtWord.totalDwellMs) || 0) +
-            ' ms إجماليًا عبر ' + (Number(gazeAtWord.visitCount) || 0) + ' زيارات مستقرة. هذا تزامن سياقي تقريبي وليس دليلًا على سبب الاختلاف.</span>'
+          ? '<span class="asr-gaze-context">إشارة نظر مجمعة لهذه الكلمة: ' + Math.round(Number(gazeAtWord.totalDwellMs) || 0) +
+            ' ms عبر ' + (Number(gazeAtWord.visitCount) || 0) + ' زيارات. هذا وحده لا يثبت سبب الاختلاف.</span>'
           : '';
+        const timedWord = (Array.isArray(analysis.wordTimestamps) ? analysis.wordTimestamps : []).find(word =>
+          Number(word.transcriptIndex) === Number(item.transcriptIndex) &&
+          word.timingQuality === 'cross-model-agreement'
+        );
+        const temporal = speechGazeContext.find(context =>
+          Number(context.targetIndex) === Number(item.targetIndex) &&
+          Number(context.transcriptIndex) === Number(item.transcriptIndex) &&
+          context.timingAvailable === true
+        );
+        const timestampMarkup = timedWord
+          ? '<span class="asr-word-timing">موضع الكلمة في التسجيل: ' + formatTimestamp(timedWord.startSeconds) + '–' +
+            formatTimestamp(timedWord.endSeconds) + '.</span><button type="button" class="btn btn-sm btn-outline" onclick="window.assessmentManager.playAudioAt(' +
+            index + ',' + Number(timedWord.startSeconds).toFixed(3) + ')">استمع إلى الموضع</button>'
+          : '<span class="asr-word-timing">لم يتفق محرك التوقيت مع هذه الكلمة؛ لم نعرض زمنًا تخمينيًا.</span>';
+        const temporalGaze = temporal && temporal.quality === 'observed'
+          ? '<span class="asr-gaze-context">خلال موضع النطق: ' + (Number(temporal.gazeSampleCount) || 0) +
+            ' عينات نظر، منها ' + (Number(temporal.mappedGazeSampleCount) || 0) + ' رُبطت بمنطقة كلمة. نسبة العينات المربوطة بكلمة النص المستهدف: ' +
+            (temporal.targetWordGazePercent == null ? 'غير متاحة' : temporal.targetWordGazePercent + '%') + '.</span>'
+          : '<span class="asr-gaze-context">لا توجد عينات زمنية كافية لربط النظر بهذه اللحظة الصوتية.</span>';
         return '<li class="asr-difference asr-' + safe(item.type) + '"><strong>' + safe(labels[item.type] || 'فرق محتمل') +
           '</strong><span>النص: ' + safe(item.targetWord || '—') + '</span><span>التفريغ: ' + safe(item.spokenWord || 'لم يظهر') + '</span>' +
-          gazeContext + '</li>';
+          timestampMarkup + temporalGaze + gazeContext + '</li>';
       }).join('') + '</ul>'
       : '<p class="asr-no-differences">لم يرصد التطابق النصي اختلافًا واضحًا. هذا لا يثبت خلو القراءة من الأخطاء؛ فقد يصحح محرك التفريغ بعض الكلمات تلقائيًا.</p>';
     const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
     output.innerHTML = '<div class="asr-result-heading"><span class="badge-info">اقتراح آلي · يحتاج مراجعة</span><strong>' + safe(analysis.passageTitle || 'تحليل القراءة الجهرية') + '</strong></div>' +
       '<h4>النص الذي تعرّف عليه محرك الصوت</h4><blockquote class="asr-transcript" dir="rtl">' + safe(analysis.transcript || '') + '</blockquote>' +
-      '<div class="asr-count-grid"><div><span>استبدال</span><strong>' + (Number(counts.substitutions) || 0) + '</strong></div><div><span>حذف محتمل</span><strong>' +
+      timestampSummaryMarkup + '<div class="asr-count-grid"><div><span>استبدال</span><strong>' + (Number(counts.substitutions) || 0) + '</strong></div><div><span>حذف محتمل</span><strong>' +
       (Number(counts.deletions) || 0) + '</strong></div><div><span>إضافة</span><strong>' + (Number(counts.insertions) || 0) + '</strong></div><div><span>تكرار</span><strong>' +
       (Number(counts.repetitions) || 0) + '</strong></div><div><span>فرق التفريغ التقريبي</span><strong>' + rate + '</strong></div></div>' +
       '<h4>الفروق المحتملة عن النص المستهدف</h4>' + differenceMarkup +
@@ -1016,6 +1116,9 @@
         model: data.model,
         analyzedAt: new Date().toISOString(),
         alignment: data.alignment,
+        wordTimestamps: Array.isArray(data.wordTimestamps) ? data.wordTimestamps : [],
+        timestampAlignment: data.timestampAlignment || null,
+        speechGazeContext: this.summarizeSpeechGazeCorrelation(segment, data.alignment, data.wordTimestamps),
         note: data.caveat
       };
       if (this.lastSession && Array.isArray(this.lastSession.readingAnalyses)) {
@@ -1034,7 +1137,10 @@
               passageId: segment.passageId,
               referenceText: segment.content,
               transcript: data.transcript,
-              model: data.model
+              model: data.model,
+              wordTimestamps: analysis.wordTimestamps,
+              timestampAlignment: analysis.timestampAlignment,
+              speechGazeContext: analysis.speechGazeContext
             })
           });
           const savedData = await savedResponse.json().catch(() => ({}));
