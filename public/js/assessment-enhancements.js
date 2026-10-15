@@ -28,6 +28,7 @@
     this.secondText = (window.ARABIC_ALTERNATE_TEXTS || []).find(item => item.grade === text.grade) || text;
     this.secondReadingMode = secondReadingMode || (Number(student.grade) <= 2 ? 'oral' : 'silent');
     this.readingSegments = [];
+    this.selectedTeacherMarkType = 'substitution';
     this.comprehensionAnswers = { 0: [], 1: [] };
     this.currentSegmentSamples = [];
     this.rawGazeSamples = [];
