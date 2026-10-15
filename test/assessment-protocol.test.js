@@ -7,7 +7,8 @@ const {
   summarizeReadingSegments,
   summarizeWordMarks,
   summarizeWordGaze,
-  assessCalibrationValidation
+  assessCalibrationValidation,
+  summarizeLowEnergyFrames
 } = require('../public/js/assessment-protocol.js');
 const { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS } = require('../public/js/texts.js');
 
@@ -142,4 +143,43 @@ test('accepts calibration only when enough independent validation targets are wi
     { sampleCount: 12, errorPx: 60 }
   ], 1280, 800);
   assert.equal(insufficient.passed, false);
+});
+
+
+test('detects internal low-energy gaps in audio without labeling them as reading errors', () => {
+  const energies = [
+    ...Array(60).fill(0.05),
+    ...Array(25).fill(0.0001),
+    ...Array(60).fill(0.05)
+  ];
+  const result = summarizeLowEnergyFrames(energies, 0.02, 0.05, { durationSeconds: 2.9 });
+  assert.equal(result.quality, 'observed');
+  assert.equal(result.pauseCount, 1);
+  assert.equal(result.longPauseCount, 0);
+  assert.equal(result.pauses[0].durationMs, 500);
+  assert.equal(result.pauses[0].startSeconds, 1.2);
+  assert.equal(result.pauses[0].endSeconds, 1.7);
+  assert.equal(result.voiceActivityRatioPercent, 82.8);
+});
+
+test('classifies very long low-energy gaps for review and bridges brief energy dips', () => {
+  const longGap = summarizeLowEnergyFrames([
+    ...Array(60).fill(0.04), ...Array(40).fill(0.0001), ...Array(60).fill(0.04)
+  ], 0.02, 0.04, { durationSeconds: 3.2 });
+  assert.equal(longGap.longPauseCount, 1);
+  assert.equal(longGap.pauses[0].durationMs, 800);
+
+  const briefDip = summarizeLowEnergyFrames([
+    ...Array(30).fill(0.04), ...Array(3).fill(0.0001), ...Array(30).fill(0.04)
+  ], 0.02, 0.04, { durationSeconds: 1.26 });
+  assert.equal(briefDip.pauseCount, 0);
+  assert.equal(briefDip.quality, 'insufficient');
+});
+
+test('marks low-level or too-short recordings insufficient instead of inventing pause statistics', () => {
+  const quiet = summarizeLowEnergyFrames(Array(150).fill(0.001), 0.02, 0.001, { durationSeconds: 3 });
+  assert.equal(quiet.quality, 'insufficient');
+  assert.equal(quiet.pauseCount, 0);
+  const short = summarizeLowEnergyFrames(Array(40).fill(0.05), 0.02, 0.05, { durationSeconds: 0.8 });
+  assert.equal(short.quality, 'insufficient');
 });
