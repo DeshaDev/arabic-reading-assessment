@@ -904,3 +904,84 @@ a { color: inherit; }
   .pages-demo-notice { align-items: stretch; flex-direction: column; }
   .pages-demo-reset { align-self: flex-start; }
 }
+
+
+/* Reading-specific gaze regions and calibration quality summary */
+.gaze-word-target { border-radius: 4px; }
+.word-gaze-summary {
+  margin-top: 13px;
+  padding: 12px;
+  border: 1px solid #e0eae4;
+  border-radius: 10px;
+  background: #fbfdfb;
+}
+.word-gaze-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 8px;
+}
+.word-gaze-metrics > div {
+  padding: 8px;
+  border: 1px solid #e5ece7;
+  border-radius: 8px;
+  background: #fff;
+}
+.word-gaze-metrics span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.75;
+}
+.word-gaze-metrics strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  margin-top: 3px;
+}
+.word-gaze-top { margin-top: 12px; }
+.word-gaze-top > strong { font-size: 10px; }
+.word-gaze-top ul { margin: 8px 0; padding: 0 18px 0 0; }
+.word-gaze-top li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #edf1ee;
+  font-size: 10px;
+}
+.word-gaze-top li strong, .word-gaze-top li small { font-size: 9px; color: var(--ink-soft); }
+.word-gaze-summary .text-muted {
+  margin: 9px 0 0;
+  font-size: 9px;
+  line-height: 1.8;
+}
+.word-gaze-unavailable { color: #765b32; border-color: #eadcc2; background: #fffaf1; }
+.word-gaze-unavailable > strong { font-size: 10px; }
+.gaze-calibration-summary {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 18px;
+  padding: 13px 16px;
+  border: 1px solid #dfe9e3;
+  border-right: 4px solid #8ba99a;
+  border-radius: 10px;
+  background: #f8fbf8;
+  color: #365345;
+  font-size: 10px;
+  line-height: 1.85;
+}
+.gaze-calibration-summary.is-failed {
+  border-color: #ead8c6;
+  border-right-color: #b98954;
+  background: #fffaf4;
+  color: #755738;
+}
+.gaze-calibration-summary strong { font-size: 11px; }
+.gaze-calibration-summary span { color: var(--ink-soft); }
+.gaze-calibration-summary small { color: var(--muted); font-size: 9px; }
+@media (max-width: 600px) {
+  .word-gaze-metrics { grid-template-columns: 1fr 1fr; }
+  .word-gaze-top li { display: grid; grid-template-columns: 1fr auto; }
+}
