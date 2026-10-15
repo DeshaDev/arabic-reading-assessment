@@ -40,3 +40,4 @@ jobs:
           node --check test/transcription-benchmark-cli.test.js
           node --check test/server.integration.test.js
           node --check test/transcription-config.test.js
+          node --check test/reading-workflow.test.js
