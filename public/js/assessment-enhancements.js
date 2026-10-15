@@ -190,7 +190,7 @@
     this.ranStartedAt = null;
     if (this.ranTimer) clearInterval(this.ranTimer);
     const container = document.getElementById('assessment-container');
-    container.innerHTML = '<div class="assessment-card fade-in"><div class="step-indicator">الخطوة 2 من 7 · تسمية الحروف</div><h2>اقرأ الحروف بصوت واضح وبسرعتك المعتادة</h2><p>يستمع المعلم ويسجل الأخطاء يدويًا؛ لا يحلل النظام النطق تلقائيًا.</p><div class="ran-board" dir="rtl">' +
+    container.innerHTML = '<div class="assessment-card fade-in"><div class="step-indicator">الخطوة 2 من 7 · تسمية الحروف</div><h2>اقرأ الحروف بصوت واضح وبسرعتك المعتادة</h2><p>هذه مهمة مستقلة لتسمية الحروف؛ لا تزال أخطاؤها تسجل يدويًا في هذا الإصدار، بينما تحليل مقاطع القراءة الجهرية متاح آليًا بعد التسجيل والموافقة.</p><div class="ran-board" dir="rtl">' +
       this.ranSequence.map(letter => '<span class="ran-letter">' + letter + '</span>').join('') +
       '</div><div class="teacher-marking-grid"><div class="form-group"><label>الزمن</label><div class="timer" id="ran-timer">00:00</div></div><div class="form-group"><label for="ran-errors">أخطاء رصدها المعلم</label><input id="ran-errors" type="number" class="form-control" min="0" max="36" value="0"></div></div><p class="text-muted">ابدأ المؤقت عند بدء تسمية الحروف وأوقفه بعد آخر حرف، دون استعجال الطفل.</p><div class="actions"><button class="btn btn-primary btn-lg" id="ran-start" onclick="window.assessmentManager.startRanTimer()">ابدأ المهمة</button><button class="btn btn-success btn-lg" id="ran-finish" disabled onclick="window.assessmentManager.finishRanTimer()">انتهت المهمة</button></div></div>';
   };
@@ -711,7 +711,7 @@
       const analysisControls = segment.audioUrl && segment.mode === 'oral'
         ? (window.NEBRAS_DEMO_MODE
           ? '<div class="asr-consent-panel"><span class="badge-info">تحليل الصوت غير متاح في Pages</span><p class="text-muted">يمكنك تجربة التقييم وحفظ تقريره على هذا المتصفح. تفريغ الصوت الآلي يتطلب تشغيل الخادم مع إعداد مفتاح API؛ لن يُرسل هذا التسجيل من صفحة Pages.</p></div>'
-          : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
+          : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى OpenAI للتفريغ، وقد يُرسل مرور ثانٍ إلى Whisper-1 لاستخراج توقيت الكلمات. سيُحفظ نص التفريغ وملخص المقارنة فقط في ملف بيانات نَبراس على الخادم، ويخضع الصوت لسياسات المزوّد.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
         : '';
       return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
         (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
@@ -790,6 +790,20 @@
       (Number(counts.deletions) || 0) + '</strong></div><div><span>إضافة</span><strong>' + (Number(counts.insertions) || 0) + '</strong></div><div><span>تكرار</span><strong>' +
       (Number(counts.repetitions) || 0) + '</strong></div><div><span>فرق التفريغ التقريبي</span><strong>' + rate + '</strong></div></div>' +
       '<h4>الفروق المحتملة عن النص المستهدف</h4>' + differenceMarkup +
+      (analysis.timedAlignment ? '<div class="asr-timing-summary"><strong>توقيتات الكلمات:</strong> ' +
+        (analysis.timedAlignment.timestampWordCount || 0) + ' كلمة بتوقيت مقدّر من ' + safe(analysis.timestampModel || 'Whisper-1') +
+        (analysis.crossModelWordErrorRate == null ? '' : ' · اختلاف التفريغ بين المحركين: ' + Math.round(analysis.crossModelWordErrorRate * 100) + '%') +
+        '</div>' : '<p class="text-muted">لم تتوفر توقيتات كلمة بكلمة؛ لذلك لا يمكن مزامنة الفروق بدقة مع حركة العين.</p>') +
+      (analysis.timestampWarning ? '<p class="asr-error">' + safe(analysis.timestampWarning) + '</p>' : '') +
+      (this.lastSession && this.lastSession.visualSegments && this.lastSession.visualSegments[index] &&
+        this.lastSession.visualSegments[index].wordGazeAlignment
+        ? (this.lastSession.visualSegments[index].wordGazeAlignment.available
+          ? '<div class="asr-gaze-summary"><strong>مزامنة الصوت والنظر:</strong> توفرت ملاحظات زمنية لـ ' +
+            this.lastSession.visualSegments[index].wordGazeAlignment.matchedWords + ' كلمة مطابقة؛ كانت نسبة عينات النظر داخل حدود الكلمة ' +
+            this.lastSession.visualSegments[index].wordGazeAlignment.onWordSamplePercent + '%.</div><p class="text-muted">' +
+            safe(this.lastSession.visualSegments[index].wordGazeAlignment.note || '') + '</p>'
+          : '<p class="text-muted">' + safe(this.lastSession.visualSegments[index].wordGazeAlignment.reason || 'لا تتوفر مزامنة صوت/نظر كافية.') + '</p>')
+        : '') +
       '<p class="asr-caveat">' + safe(analysis.note || analysis.caveat || 'قد تكون بعض الفروق ناتجة عن التعرف الصوتي، أو اللفظ، أو اللهجة، أو التشكيل؛ راجع التسجيل يدويًا.') + '</p>';
   };
 
@@ -837,6 +851,10 @@
         model: data.model,
         analyzedAt: new Date().toISOString(),
         alignment: data.alignment,
+        timestampModel: data.timestampModel || null,
+        timedAlignment: data.timedAlignment || null,
+        timestampWarning: data.timestampWarning || null,
+        crossModelWordErrorRate: data.crossModelWordErrorRate == null ? null : data.crossModelWordErrorRate,
         note: data.caveat
       };
       if (this.lastSession && Array.isArray(this.lastSession.readingAnalyses)) {
@@ -855,7 +873,9 @@
               passageId: segment.passageId,
               referenceText: segment.content,
               transcript: data.transcript,
-              model: data.model
+              model: data.model,
+              timestampModel: data.timestampModel || null,
+              timedWords: Array.isArray(data.timedWords) ? data.timedWords : []
             })
           });
           const savedData = await savedResponse.json().catch(() => ({}));
@@ -875,8 +895,10 @@
         this.lastSession.readingAnalyses = (this.lastSession.readingAnalyses || []).filter(item => item.passageId !== segment.passageId);
         this.lastSession.readingAnalyses.push(analysis);
         segment.analysis = analysis;
+        segment.wordGazeAlignment = this.calculateTimedGazeAlignment(segment, analysis.timedAlignment);
       }
       this.renderAutomatedReadingAnalysis(index, analysis);
+      this.selectVisualSegment(index);
       if (button) button.textContent = 'إعادة التحليل';
     } catch (error) {
       if (output) output.innerHTML = '<p class="asr-error">' + this.escapeHtml(error.message || 'تعذر إكمال التحليل.') + '</p>';
@@ -898,7 +920,19 @@
       if (button) button.classList.toggle('active', i === index);
     });
     const textView = document.getElementById('replay-text-view');
-    if (textView) textView.textContent = segments[index].content || '';
+    if (textView) {
+      textView.innerHTML = this.renderTrackedArabicText(segments[index].content || '');
+      const wordAlignment = segments[index].wordGazeAlignment;
+      if (wordAlignment && wordAlignment.byTargetIndex) {
+        Object.keys(wordAlignment.byTargetIndex).forEach(key => {
+          const observation = wordAlignment.byTargetIndex[key];
+          const word = textView.querySelector('[data-reading-word-index="' + key + '"]');
+          if (!word || !observation || observation.sampleCount < 3) return;
+          word.classList.add(observation.insidePercent >= 50 ? 'gaze-word-timed-hit' : 'gaze-word-timed-low');
+          word.title = 'عينات النظر داخل حدود الكلمة خلال توقيت نطقها: ' + observation.insidePercent + '% (' + observation.sampleCount + ' عينة). مقياس تقني تجريبي.';
+        });
+      }
+    }
     if (!this.analysisVisualizer) return;
     const wrapper = document.getElementById('replay-wrapper');
     if (wrapper) this.analysisVisualizer.resize(wrapper.clientWidth, wrapper.clientHeight);
