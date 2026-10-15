@@ -807,13 +807,16 @@
         .map(item => '<li><span>' + safe(indexedWords[Number(item.wordIndex)] || ('كلمة ' + (Number(item.wordIndex) + 1))) +
           '</span><strong>' + Math.round(Number(item.totalDwellMs) || 0) + ' ms</strong><small>' + (Number(item.visitCount) || 0) + ' مرات</small></li>')
         .join('');
+      const gazeHeatmapHtml = wordGaze.quality === 'observed'
+        ? '<div class="reading-gaze-wordmap"><strong>خريطة زمن النظر على الكلمات</strong><div class="reading-gaze-wordmap-text" dir="rtl">' + this.renderGazeHeatmapText(segment.content, wordGaze) + '</div><div class="reading-gaze-legend"><span><i class="heat-key heat-unseen"></i>لا توجد عينة مرتبطة</span><span><i class="heat-key heat-low"></i>زمن أقل نسبيًا</span><span><i class="heat-key heat-medium"></i>متوسط نسبيًا</span><span><i class="heat-key heat-high"></i>أعلى نسبيًا</span></div><p class="text-muted">الألوان تقارن زمن النظر المقدّر داخل هذا المقطع فقط. النظرات الأطول ليست خطأ قراءة أو صعوبة مؤكدة.</p></div>'
+        : '';
       const wordGazeMarkup = wordGaze.quality === 'observed'
         ? '<div class="word-gaze-summary"><div class="word-gaze-metrics"><div><span>كلمات ظهرت عندها إشارة مستقرة</span><strong>' +
           (Number(wordGaze.uniqueWordsSeen) || 0) + ' / ' + (Number(wordGaze.targetWordCount) || 0) + '</strong></div><div><span>تغطية الكلمات</span><strong>' +
           (Number(wordGaze.wordCoveragePercent) || 0) + '%</strong></div><div><span>عينات أُسندت إلى كلمة</span><strong>' +
           (Number(wordGaze.sampleCoveragePercent) || 0) + '%</strong></div><div><span>انتقالات بصرية إلى كلمة سابقة</span><strong>' +
           (Number(wordGaze.regressions) || 0) + '</strong></div></div>' +
-          (topDwell ? '<div class="word-gaze-top"><strong>أطول أزمنة نظر مرصودة (ليست أخطاء بحد ذاتها)</strong><ul>' + topDwell + '</ul></div>' : '') +
+          gazeHeatmapHtml + (topDwell ? '<div class="word-gaze-top"><strong>أطول أزمنة نظر مرصودة (ليست أخطاء بحد ذاتها)</strong><ul>' + topDwell + '</ul></div>' : '') +
           '<p class="text-muted">هذه مؤشرات من إحداثيات النظر المقدّرة ومواقع الكلمات على الشاشة. لا تثبت أن الطفل قرأ الكلمة أو فهمها، ولا تُستخدم كدرجة تشخيصية.</p></div>'
         : '<div class="word-gaze-summary word-gaze-unavailable"><strong>لا توجد تغطية كافية لربط النظر بالكلمات.</strong><p class="text-muted">يتطلب ذلك اجتياز التحقق التقني للمعايرة والتقاط عينات كافية فوق مناطق الكلمات.</p></div>';
       return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
@@ -889,6 +892,33 @@
   proto.setAudioAnalysisConsent = function (index, accepted) {
     const button = document.getElementById('asr-run-' + index);
     if (button && !button.dataset.busy) button.disabled = accepted !== true;
+  };
+
+  proto.renderGazeHeatmapText = function (content, wordGaze) {
+    const source = String(content || '');
+    const perWord = Array.isArray(wordGaze && wordGaze.perWord) ? wordGaze.perWord : [];
+    const dwellMap = new Map(perWord.map(item => [Number(item.wordIndex), Math.max(0, Number(item.totalDwellMs) || 0)]));
+    const maxDwell = perWord.reduce((max, item) => Math.max(max, Number(item.totalDwellMs) || 0), 0);
+    const wordPattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
+    let html = '';
+    let lastIndex = 0;
+    let wordIndex = 0;
+    let match;
+    while ((match = wordPattern.exec(source)) !== null) {
+      html += this.escapeHtml(source.slice(lastIndex, match.index));
+      const dwell = dwellMap.get(wordIndex) || 0;
+      let heatClass = 'gaze-heat-unseen';
+      if (dwell > 0 && maxDwell > 0) {
+        const ratio = dwell / maxDwell;
+        heatClass = ratio >= 0.66 ? 'gaze-heat-high' : ratio >= 0.33 ? 'gaze-heat-medium' : 'gaze-heat-low';
+      }
+      html += '<span class="' + heatClass + '" title="الكلمة ' + (wordIndex + 1) + ' · زمن النظر التراكمي المقدر ' + Math.round(dwell) + ' مللي ثانية">' +
+        this.escapeHtml(match[0]) + '</span>';
+      wordIndex++;
+      lastIndex = wordPattern.lastIndex;
+    }
+    html += this.escapeHtml(source.slice(lastIndex));
+    return html;
   };
 
   proto.renderAutomatedReadingAnalysis = function (index, analysis) {
