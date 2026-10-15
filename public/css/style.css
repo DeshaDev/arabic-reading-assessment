@@ -671,3 +671,35 @@ a { color: inherit; }
   .teacher-marking-grid { grid-template-columns: 1fr; gap: 5px; }
   .reading-summary-grid { grid-template-columns: 1fr; }
 }
+
+/* Student longitudinal review */
+.progress-panel {
+  margin: 18px 0 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fbfdfb;
+}
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 13px;
+}
+.progress-chart {
+  padding: 15px;
+  border: 1px solid #e7eeea;
+  border-radius: 12px;
+  background: #fff;
+  min-width: 0;
+}
+.progress-chart h4 { margin: 0; font-size: 12px; }
+.progress-chart > p { margin: 3px 0 12px; color: var(--muted); font-size: 10px; }
+.progress-chart svg { display: block; width: 100%; height: auto; }
+.progress-chart .chart-legend { margin-bottom: 6px; }
+.legend-silent { background: #6c83b9; margin-right: 10px; }
+.progress-disclaimer { margin-top: 9px !important; font-size: 10px !important; line-height: 1.8; }
+@media (max-width: 700px) {
+  .progress-grid { grid-template-columns: 1fr; }
+  .progress-panel { padding: 12px; }
+  .progress-chart { padding: 10px; }
+}
