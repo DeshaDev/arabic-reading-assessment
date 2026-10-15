@@ -28,6 +28,7 @@ class ParentReportGenerator {
       : wpm + ' كلمة/دقيقة';
     const qualityLabel = risk.levelAr || 'مؤشرات وصفية — لا تصنيف تشخيصي';
     const reasons = Array.isArray(risk.reasons) ? risk.reasons : [];
+    const segments = Array.isArray(s.readingSegments) ? s.readingSegments : [];
     const reasonsHtml = reasons.length
       ? reasons.map(function (reason) { return '<li>' + safe(reason) + '</li>'; }).join('')
       : '<li>راجع مدة القراءة وإجابات الفهم وجودة الإشارة مع المعلم.</li>';
@@ -51,6 +52,21 @@ class ParentReportGenerator {
     html += '<div class="metric-card"><div class="metric-title">فهم المقروء</div><div class="metric-val">' + score + ' / ' + total + '</div><div class="metric-desc">الإجابات الصحيحة المسجلة</div></div>';
     html += '<div class="metric-card"><div class="metric-title">عينات النظر</div><div class="metric-val">' + (gazeAvailable ? safe(m.totalFixations || 0) + ' تثبيت' : 'غير متاحة') + '</div><div class="metric-desc">' + (gazeAvailable ? 'قياس تقديري عبر كاميرا الجهاز' : 'إشارة غير كافية أو معايرة غير مكتملة') + '</div></div>';
     html += '<div class="metric-card"><div class="metric-title">حالة القياس</div><div class="metric-val">' + safe(qualityLabel) + '</div><div class="metric-desc">لا توجد درجة خطر أو تشخيص</div></div></div></section>';
+
+    html += '<section class="report-section"><h3 class="section-title">تفاصيل مهام القراءة</h3><div class="recommendations-list">';
+    html += '<div class="rec-card"><div class="rec-num">R</div><div><h4>تسمية الحروف</h4><p>الزمن: ' + (s.ranDurationSeconds == null ? 'غير مسجل' : safe(s.ranDurationSeconds) + ' ثانية') + ' · أخطاء رصدها المعلم: ' + (Number(s.ranErrors) || 0) + '.</p></div></div>';
+    if (segments.length) {
+      html += segments.map(function (segment, index) {
+        const mode = segment.mode === 'oral' ? 'جهرية' : 'صامتة';
+        return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'توجد عينات كافية مبدئيًا' : 'غير متاحة أو غير كافية') + '.</p></div></div>';
+      }).join('');
+    } else {
+      html += '<p class="text-muted">هذه جلسة قديمة لا تتضمن تفاصيل المقاطع.</p>';
+    }
+    html += '</div></section>';
+    if (s.readingIndependently !== undefined || s.assistanceType || s.teacherNotes) {
+      html += '<section class="report-section"><h3 class="section-title">سياق المعلم</h3><div class="summary-card"><p>القراءة باستقلال: ' + (s.readingIndependently === true ? 'نعم' : s.readingIndependently === false ? 'لا' : 'غير محدد') + ' · المساعدة: ' + safe(s.assistanceType || 'غير محددة') + '.</p>' + (s.teacherNotes ? '<p>' + safe(s.teacherNotes) + '</p>' : '') + '</div></section>';
+    }
 
     html += '<section class="report-section"><h3 class="section-title">ملاحظات فنية يجب مراجعتها</h3><div class="recommendations-list">';
     html += '<div class="rec-card"><div class="rec-num">1</div><div><h4>جودة إشارة النظر</h4><p>' + safe(gazeSummary) + '</p></div></div>';
