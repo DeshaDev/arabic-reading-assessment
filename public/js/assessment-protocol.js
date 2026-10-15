@@ -254,6 +254,57 @@
     };
   }
 
+  function summarizeGazeDuringSpeechInterval(samples, targetWordCount, targetWordIndex, audioStartSeconds, audioEndSeconds, audioOffsetSeconds) {
+    const targetCount = Math.max(0, Math.min(2000, Math.floor(Number(targetWordCount) || 0)));
+    const targetIndex = targetWordIndex == null ? null : Number(targetWordIndex);
+    const start = Number(audioStartSeconds);
+    const end = Number(audioEndSeconds);
+    const offsetMs = Math.max(0, Math.min(60000, Number(audioOffsetSeconds) * 1000 || 0));
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > 3600) {
+      return {
+        quality: 'insufficient', gazeSampleCount: 0, mappedGazeSampleCount: 0, targetWordSampleCount: 0,
+        targetWordGazePercent: null, dominantGazeWordIndex: null, dominantGazeWordSharePercent: null
+      };
+    }
+    const startMs = start * 1000 - offsetMs;
+    const endMs = end * 1000 - offsetMs;
+    const safeSamples = Array.isArray(samples) ? samples.filter(function (sample) {
+      const t = Number(sample && sample.segmentT);
+      return endMs > 0 && endMs > startMs && Number.isFinite(t) && t >= Math.max(0, startMs) && t <= endMs;
+    }) : [];
+    const mapped = safeSamples.filter(function (sample) {
+      if (sample.wordIndex == null) return false;
+      const index = Number(sample.wordIndex);
+      return Number.isInteger(index) && index >= 0 && index < targetCount;
+    });
+    const counts = new Map();
+    mapped.forEach(function (sample) {
+      const wordIndex = Number(sample.wordIndex);
+      counts.set(wordIndex, (counts.get(wordIndex) || 0) + 1);
+    });
+    let dominant = null;
+    let dominantCount = 0;
+    counts.forEach(function (count, wordIndex) {
+      if (count > dominantCount) {
+        dominant = wordIndex;
+        dominantCount = count;
+      }
+    });
+    const targetCountSamples = targetIndex != null && Number.isInteger(targetIndex) && targetIndex >= 0 && targetIndex < targetCount
+      ? mapped.filter(function (sample) { return Number(sample.wordIndex) === targetIndex; }).length
+      : 0;
+    const quality = safeSamples.length >= 3 && mapped.length >= 2 ? 'observed' : 'insufficient';
+    return {
+      quality: quality,
+      gazeSampleCount: safeSamples.length,
+      mappedGazeSampleCount: mapped.length,
+      targetWordSampleCount: targetCountSamples,
+      targetWordGazePercent: mapped.length ? Math.round(targetCountSamples / mapped.length * 1000) / 10 : null,
+      dominantGazeWordIndex: dominant,
+      dominantGazeWordSharePercent: mapped.length ? Math.round(dominantCount / mapped.length * 1000) / 10 : null
+    };
+  }
+
   function median(values) {
     if (!values.length) return null;
     const sorted = values.slice().sort(function (a, b) { return a - b; });
@@ -287,7 +338,7 @@
     };
   }
 
-  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, summarizeLowEnergyFrames, WORD_MARK_TYPES };
+  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, summarizeLowEnergyFrames, summarizeGazeDuringSpeechInterval, WORD_MARK_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.ReadingAssessmentProtocol = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
