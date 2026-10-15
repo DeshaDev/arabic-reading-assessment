@@ -357,6 +357,15 @@ a { color: inherit; }
 }
 .calib-target:hover { transform: scale(1.08); }
 .calib-target.pulse { animation: pulseTarget .9s infinite alternate; }
+.calib-prediction-dot {
+  display: none; position: fixed; left: 50%; top: 50%; width: 16px; height: 16px;
+  transform: translate(-50%, -50%); border: 3px solid #fff; border-radius: 50%;
+  background: #e11d48; box-shadow: 0 0 0 3px rgba(225,29,72,.22), 0 2px 8px rgba(15,23,42,.35);
+  z-index: 10003; pointer-events: none;
+}
+.calibration-measurement-details { margin: 12px 0; font-size: 13px; }
+.calibration-measurement-details summary { cursor: pointer; font-weight: 700; }
+.calibration-measurement-details ul { margin: 8px 0; padding-right: 22px; line-height: 1.8; }
 .calib-target-counter { font-size: 10px; font-weight: 700; color: var(--teal-dark); background: #fff; padding: 1px 6px; border-radius: 7px; }
 @keyframes pulseTarget { from { transform: scale(1); } to { transform: scale(1.1); } }
 .reading-stage {
