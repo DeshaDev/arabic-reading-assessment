@@ -902,10 +902,10 @@
         .map(item => '<li><span>' + safe(indexedWords[Number(item.wordIndex)] || ('كلمة ' + (Number(item.wordIndex) + 1))) +
           '</span><strong>' + Math.round(Number(item.totalDwellMs) || 0) + ' ms</strong><small>' + (Number(item.visitCount) || 0) + ' مرات</small></li>')
         .join('');
-      const gazeHeatmapHtml = wordGaze.quality === 'observed'
+      const gazeHeatmapHtml = wordGaze.quality === 'observed' && segment.hasValidGaze === true
         ? '<div class="reading-gaze-wordmap"><strong>خريطة زمن النظر على الكلمات</strong><div class="reading-gaze-wordmap-text" dir="rtl">' + this.renderGazeHeatmapText(segment.content, wordGaze) + '</div><div class="reading-gaze-legend"><span><i class="heat-key heat-unseen"></i>لا توجد عينة مرتبطة</span><span><i class="heat-key heat-low"></i>زمن أقل نسبيًا</span><span><i class="heat-key heat-medium"></i>متوسط نسبيًا</span><span><i class="heat-key heat-high"></i>أعلى نسبيًا</span></div><p class="text-muted">الألوان تقارن زمن النظر المقدّر داخل هذا المقطع فقط. النظرات الأطول ليست خطأ قراءة أو صعوبة مؤكدة.</p></div>'
         : '';
-      const wordGazeMarkup = wordGaze.quality === 'observed'
+      const wordGazeMarkup = wordGaze.quality === 'observed' && segment.hasValidGaze === true
         ? '<div class="word-gaze-summary"><div class="word-gaze-metrics"><div><span>كلمات ظهرت عندها إشارة مستقرة</span><strong>' +
           (Number(wordGaze.uniqueWordsSeen) || 0) + ' / ' + (Number(wordGaze.targetWordCount) || 0) + '</strong></div><div><span>تغطية الكلمات</span><strong>' +
           (Number(wordGaze.wordCoveragePercent) || 0) + '%</strong></div><div><span>عينات أُسندت إلى كلمة</span><strong>' +
@@ -913,7 +913,7 @@
           (Number(wordGaze.regressions) || 0) + '</strong></div></div>' +
           gazeHeatmapHtml + (topDwell ? '<div class="word-gaze-top"><strong>أطول أزمنة نظر مرصودة (ليست أخطاء بحد ذاتها)</strong><ul>' + topDwell + '</ul></div>' : '') +
           '<p class="text-muted">هذه مؤشرات من إحداثيات النظر المقدّرة ومواقع الكلمات على الشاشة. لا تثبت أن الطفل قرأ الكلمة أو فهمها، ولا تُستخدم كدرجة تشخيصية.</p></div>'
-        : '<div class="word-gaze-summary word-gaze-unavailable"><strong>لا توجد تغطية كافية لربط النظر بالكلمات.</strong><p class="text-muted">يتطلب ذلك اجتياز التحقق التقني للمعايرة والتقاط عينات كافية فوق مناطق الكلمات.</p></div>';
+        : '<div class="word-gaze-summary word-gaze-unavailable"><strong>' + (segment.hasValidGaze ? 'لا توجد تغطية كافية لربط النظر بالكلمات.' : 'لم تُعرض خريطة النظر لأن المعايرة لم تجتز التحقق التقني الأولي.') + '</strong><p class="text-muted">تقدير النظر غير المعاير، إن ظهر أثناء القراءة، لا يُستخدم في مؤشرات التقرير أو أي استنتاج عن صعوبة القراءة.</p></div>';
       return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
         (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
         '<div class="reading-summary-stats"><div><span>المدة</span><strong>' + this.formatProtocolDuration(segment.durationSeconds) +
