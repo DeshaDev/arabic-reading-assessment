@@ -423,7 +423,9 @@
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
     const wordCount = window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content);
+    const displayWords = String(this.currentText.content || '').match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || [];
     const wordGaze = window.ReadingAssessmentProtocol.summarizeWordGaze(samples, wordCount);
+    wordGaze.perWord = wordGaze.perWord.map(item => Object.assign({}, item, { wordText: displayWords[item.wordIndex] || '' }));
     const hasValidGaze = !!(this.calibrationCompleted && this.tracker.isStreaming && durationSeconds >= 10 &&
       samples.length >= 15 && gazeMetrics.totalFixations >= 2 && gazeMetrics.avgFixationDurationMs > 0);
     this.readingSegments[index] = {
@@ -630,6 +632,7 @@
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors,
       omissions: segment.omissions, selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze,
       wordMarks: (segment.wordMarks || []).slice(0, 500).map(mark => ({ wordIndex: mark.wordIndex, type: mark.type })),
+      wordGaze: segment.wordGaze,
       metrics: {
         totalFixations: segment.metrics.totalFixations, avgFixationDurationMs: segment.metrics.avgFixationDurationMs,
         forwardSaccadesCount: segment.metrics.forwardSaccadesCount, regressionsCount: segment.metrics.regressionsCount,
