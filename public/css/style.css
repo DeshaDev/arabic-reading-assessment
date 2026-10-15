@@ -379,6 +379,10 @@ a { color: inherit; }
   background: #ffed9f; box-shadow: 0 0 0 3px rgba(255, 213, 74, .45);
   color: #182f39; outline: 2px solid rgba(191, 138, 0, .28);
 }
+.audio-download-row {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 8px 0 12px;
+}
+.audio-download-row .text-muted { font-size: 12px; }
 .reading-footer-hint { text-align: center; color: var(--muted); font-size: 10px; margin-top: 12px; }
 
 /* Comprehension and feedback */
