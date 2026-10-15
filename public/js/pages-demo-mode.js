@@ -97,7 +97,7 @@
         status: 'ok',
         service: 'Nebras GitHub Pages demo',
         mode: 'github-pages-demo',
-        version: 'pages-demo-1.0',
+        version: 'pages-demo-1.1',
         automaticSpeechAnalysisEnabled: false,
         notice: 'Static demo mode: API-shaped actions use browser-local storage only.'
       });
@@ -214,7 +214,7 @@
     notice.setAttribute('role', 'note');
     notice.innerHTML =
       '<div class="pages-demo-notice-copy"><strong>نسخة GitHub Pages للتجربة فقط</strong>' +
-      '<span>تُحفظ السجلات في هذا المتصفح فقط. لا تدخل أسماء أو بيانات أطفال حقيقيين. تحليل الصوت الآلي يحتاج خادم API منفصلًا.</span></div>' +
+      '<span>يمكن تجربة الكاميرا وخريطة النظر وفحص فترات انخفاض الطاقة الصوتية محليًا. تفريغ الكلام وتوقيت الكلمات يحتاجان خادم API ومفتاحًا محفوظًا عليه. تُحفظ السجلات في هذا المتصفح فقط؛ لا تدخل بيانات أطفال حقيقيين.</span></div>' +
       '<button type="button" class="pages-demo-reset" onclick="window.NEBRAS_PAGES_DEMO.reset()">مسح بيانات التجربة</button>';
     main.insertBefore(notice, content);
   }
