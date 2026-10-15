@@ -220,6 +220,7 @@ app.post('/api/sessions', (req, res) => {
     ranDurationSeconds,
     ranErrors,
     readingSegments: safeReadingSegments,
+    comparableReadingMode: new Set(safeReadingSegments.map(segment => segment.mode)).size <= 1,
     teacherMarkedErrors: clampInt(body.teacherMarkedErrors, 600),
     omissions: clampInt(body.omissions, 600),
     selfCorrections: clampInt(body.selfCorrections, 600),
