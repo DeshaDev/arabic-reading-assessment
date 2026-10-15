@@ -178,6 +178,35 @@ app.post('/api/sessions', (req, res) => {
     const wordCount = clampInt(source.wordCount, 2000);
     const gazeSource = source.wordGaze && typeof source.wordGaze === 'object' ? source.wordGaze : {};
     const gazeSampleCount = clampInt(gazeSource.sampleCount, 1000000);
+    const acousticSource = source.acousticAnalysis && typeof source.acousticAnalysis === 'object' ? source.acousticAnalysis : null;
+    const safeAcousticAnalysis = acousticSource ? (function () {
+      const durationSeconds = Math.max(0, Math.min(3600, Number(acousticSource.durationSeconds) || 0));
+      const pauses = Array.isArray(acousticSource.pauses) ? acousticSource.pauses.slice(0, 40).reduce((items, pause) => {
+        const startSeconds = Number(pause && pause.startSeconds);
+        const endSeconds = Number(pause && pause.endSeconds);
+        const durationMs = Number(pause && pause.durationMs);
+        if (!Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) || !Number.isFinite(durationMs) ||
+            startSeconds < 0 || endSeconds <= startSeconds || endSeconds > 3600 || durationMs < 280 || durationMs > 3600000) return items;
+        items.push({
+          startSeconds: Math.round(startSeconds * 100) / 100,
+          endSeconds: Math.round(endSeconds * 100) / 100,
+          durationMs: Math.round(durationMs),
+          kind: durationMs >= 700 ? 'long-low-energy-gap' : 'low-energy-gap'
+        });
+        return items;
+      }, []) : [];
+      return {
+        method: 'local-rms-energy-v1',
+        quality: acousticSource.quality === 'observed' && durationSeconds >= 2 ? 'observed' : 'insufficient',
+        durationSeconds: durationSeconds,
+        voiceActivityRatioPercent: Math.max(0, Math.min(100, Number(acousticSource.voiceActivityRatioPercent) || 0)),
+        pauseCount: pauses.length,
+        longPauseCount: pauses.filter(pause => pause.durationMs >= 700).length,
+        longestPauseMs: pauses.reduce((longest, pause) => Math.max(longest, pause.durationMs), 0),
+        pauses: pauses,
+        note: 'تحليل محلي لانخفاض الطاقة الصوتية؛ قد تتأثر النتائج بالضجيج والهمس ولا تعني وحدها وجود تردد أو خطأ.'
+      };
+    })() : null;
     const safeWordGaze = {
       quality: gazeSource.quality === 'observed' && safeGazeCalibration && safeGazeCalibration.passed === true ? 'observed' : 'insufficient',
       targetWordCount: wordCount,
@@ -214,6 +243,7 @@ app.post('/api/sessions', (req, res) => {
       selfCorrections: clampInt(source.selfCorrections, 200),
       hasValidGaze: source.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true,
       wordGaze: safeWordGaze,
+      acousticAnalysis: safeAcousticAnalysis,
       metrics: {
         totalFixations: clampInt(segmentMetrics.totalFixations, 10000),
         avgFixationDurationMs: clampInt(segmentMetrics.avgFixationDurationMs, 10000),
