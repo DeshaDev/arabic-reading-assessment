@@ -60,7 +60,7 @@ npm test
 شغّل التقييم من الطرفية:
 
 ~~~bash
-npm run benchmark:transcriptions -- --input ./local-data/arabic-reading-benchmark.json --output ./local-data/benchmark-report.json
+npm run benchmark:transcriptions -- --input ./arabic-reading-benchmark.json --output ./benchmark-report.json
 ~~~
 
 يدعم الأمر مصفوفة JSON أو كائنًا يحتوي على records أو ملف JSONL بسجل واحد في كل سطر. يخرج التقرير معدل خطأ الكلمات الموزون حسب عدد كلمات النص المرجعي، وتفصيل الاستبدال والحذف والإضافة والتكرار المحتمل، ومقارنة النتائج حسب الصف والنموذج وطريقة القراءة. عندما توجد expertAnnotations يضيف precision/recall/F1 لمقارنة الفروق الآلية بعلامات المراجعين؛ لا تُحسب هذه المقاييس إذا لم توجد علامات بشرية.
