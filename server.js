@@ -148,7 +148,7 @@ app.post('/api/sessions', (req, res) => {
     level: risk.level === 'observations' && wpm !== null ? 'observations' : 'insufficient',
     levelAr: risk.level === 'observations' && wpm !== null ? 'مؤشرات وصفية — لا تصنيف تشخيصي' : 'بيانات غير كافية للتفسير',
     score: null,
-    hasValidGaze: body.hasValidGaze === true && durationSeconds >= 10 && metrics.totalFixations >= 2,
+    hasValidGaze: body.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true && durationSeconds >= 10 && metrics.totalFixations >= 2,
     reasons: Array.isArray(risk.reasons) ? risk.reasons.slice(0, 12).filter(x => typeof x === 'string').map(x => x.slice(0, 400)) : []
   };
   const clampInt = (value, max) => Math.max(0, Math.min(max, Math.floor(Number(value) || 0)));
@@ -157,20 +157,60 @@ app.post('/api/sessions', (req, res) => {
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 && number <= 3600 ? Math.round(number * 100) / 100 : null;
   };
+  const rawGazeCalibration = body.gazeCalibration && typeof body.gazeCalibration === 'object'
+    ? body.gazeCalibration : null;
+  const safeGazeCalibration = rawGazeCalibration ? {
+    passed: rawGazeCalibration.passed === true,
+    validationTargetCount: clampInt(rawGazeCalibration.validationTargetCount, 5),
+    validTargetCount: clampInt(rawGazeCalibration.validTargetCount, 5),
+    targetsWithinTolerance: clampInt(rawGazeCalibration.targetsWithinTolerance, 5),
+    tolerancePx: clampInt(rawGazeCalibration.tolerancePx, 5000),
+    medianErrorPx: rawGazeCalibration.medianErrorPx == null ? null : clampInt(rawGazeCalibration.medianErrorPx, 10000),
+    meanErrorPx: rawGazeCalibration.meanErrorPx == null ? null : clampInt(rawGazeCalibration.meanErrorPx, 10000),
+    quality: rawGazeCalibration.passed === true ? 'within-internal-tolerance' : 'insufficient-or-outside-tolerance'
+  } : null;
   const safeReadingSegments = Array.isArray(body.readingSegments) ? body.readingSegments.slice(0, 2).map(segment => {
     const source = segment && typeof segment === 'object' ? segment : {};
     const mode = source.mode === 'oral' || source.mode === 'silent' ? source.mode : 'silent';
     const segmentMetrics = source.metrics && typeof source.metrics === 'object' ? source.metrics : {};
+    const wordCount = clampInt(source.wordCount, 2000);
+    const gazeSource = source.wordGaze && typeof source.wordGaze === 'object' ? source.wordGaze : {};
+    const gazeSampleCount = clampInt(gazeSource.sampleCount, 1000000);
+    const safeWordGaze = {
+      quality: gazeSource.quality === 'observed' && safeGazeCalibration && safeGazeCalibration.passed === true ? 'observed' : 'insufficient',
+      targetWordCount: wordCount,
+      sampleCount: gazeSampleCount,
+      inTextSamples: Math.min(gazeSampleCount, clampInt(gazeSource.inTextSamples, 1000000)),
+      sampleCoveragePercent: Math.max(0, Math.min(100, Number(gazeSource.sampleCoveragePercent) || 0)),
+      uniqueWordsSeen: Math.min(wordCount, clampInt(gazeSource.uniqueWordsSeen, 2000)),
+      wordCoveragePercent: Math.max(0, Math.min(100, Number(gazeSource.wordCoveragePercent) || 0)),
+      stableWordVisits: clampInt(gazeSource.stableWordVisits, 100000),
+      totalDwellMs: clampInt(gazeSource.totalDwellMs, 3600000),
+      regressions: clampInt(gazeSource.regressions, 100000),
+      forwardTransitions: clampInt(gazeSource.forwardTransitions, 100000),
+      perWord: Array.isArray(gazeSource.perWord) ? gazeSource.perWord.slice(0, 200).reduce((items, item) => {
+        const wordIndex = Number(item && item.wordIndex);
+        if (!Number.isInteger(wordIndex) || wordIndex < 0 || wordIndex >= wordCount || items.some(entry => entry.wordIndex === wordIndex)) return items;
+        items.push({
+          wordIndex,
+          totalDwellMs: clampInt(item.totalDwellMs, 300000),
+          visitCount: clampInt(item.visitCount, 1000),
+          longestDwellMs: clampInt(item.longestDwellMs, 300000)
+        });
+        return items;
+      }, []) : []
+    };
     return {
       passageId: typeof source.passageId === 'string' ? source.passageId.slice(0, 80) : '',
       passageTitle: typeof source.passageTitle === 'string' ? source.passageTitle.slice(0, 180) : '',
       mode,
       durationSeconds: optionalSeconds(source.durationSeconds) || 0,
-      wordCount: clampInt(source.wordCount, 2000),
+      wordCount,
       errors: clampInt(source.errors, 200),
       omissions: clampInt(source.omissions, 200),
       selfCorrections: clampInt(source.selfCorrections, 200),
-      hasValidGaze: source.hasValidGaze === true,
+      hasValidGaze: source.hasValidGaze === true && safeGazeCalibration !== null && safeGazeCalibration.passed === true,
+      wordGaze: safeWordGaze,
       metrics: {
         totalFixations: clampInt(segmentMetrics.totalFixations, 10000),
         avgFixationDurationMs: clampInt(segmentMetrics.avgFixationDurationMs, 10000),
@@ -227,6 +267,7 @@ app.post('/api/sessions', (req, res) => {
     ranErrors,
     readingSegments: safeReadingSegments,
     readingAnalyses: [],
+    gazeCalibration: safeGazeCalibration,
     comparableReadingMode: new Set(safeReadingSegments.map(segment => segment.mode)).size <= 1,
     teacherMarkedErrors: clampInt(body.teacherMarkedErrors, 600),
     omissions: clampInt(body.omissions, 600),
