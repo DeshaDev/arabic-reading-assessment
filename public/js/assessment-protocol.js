@@ -181,6 +181,79 @@
     };
   }
 
+  function summarizeLowEnergyFrames(energyValues, frameDurationSeconds, peakRms, options) {
+    const settings = Object.assign({
+      thresholdFloorRms: 0.003,
+      relativeThreshold: 0.10,
+      bridgeGapFrames: 4,
+      minimumPauseMs: 280,
+      longPauseMs: 700,
+      minimumDurationSeconds: 2,
+      minimumPeakRms: 0.006
+    }, options || {});
+    const values = Array.isArray(energyValues) ? energyValues.slice(0, 180000).map(function (value) {
+      return Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0;
+    }) : [];
+    const step = Math.max(0.001, Number(frameDurationSeconds) || 0.02);
+    const peak = Math.max(0, Number(peakRms) || 0);
+    const durationSeconds = Math.max(0, Number(settings.durationSeconds) || values.length * step);
+    const threshold = Math.max(settings.thresholdFloorRms, peak * settings.relativeThreshold);
+    const active = values.map(function (value) { return value >= threshold; });
+
+    let cursor = 0;
+    while (cursor < active.length) {
+      if (active[cursor]) { cursor++; continue; }
+      const start = cursor;
+      while (cursor < active.length && !active[cursor]) cursor++;
+      const gapLength = cursor - start;
+      if (start > 0 && cursor < active.length && gapLength <= settings.bridgeGapFrames) {
+        for (let k = start; k < cursor; k++) active[k] = true;
+      }
+    }
+
+    const regions = [];
+    let regionStart = null;
+    for (let frame = 0; frame < active.length; frame++) {
+      if (active[frame] && regionStart === null) regionStart = frame;
+      if (!active[frame] && regionStart !== null) {
+        regions.push({ start: regionStart, end: frame });
+        regionStart = null;
+      }
+    }
+    if (regionStart !== null) regions.push({ start: regionStart, end: active.length });
+
+    const pauses = [];
+    for (let i = 1; i < regions.length; i++) {
+      const durationMs = Math.round((regions[i].start - regions[i - 1].end) * step * 1000);
+      if (durationMs >= settings.minimumPauseMs) {
+        pauses.push({
+          startSeconds: Math.round(regions[i - 1].end * step * 100) / 100,
+          endSeconds: Math.round(regions[i].start * step * 100) / 100,
+          durationMs: durationMs,
+          kind: durationMs >= settings.longPauseMs ? 'long-low-energy-gap' : 'low-energy-gap'
+        });
+      }
+    }
+
+    const activeFrames = active.filter(Boolean).length;
+    const voiceActivityRatioPercent = active.length
+      ? Math.round(activeFrames / active.length * 1000) / 10
+      : 0;
+    const quality = durationSeconds >= settings.minimumDurationSeconds &&
+      peak >= settings.minimumPeakRms && activeFrames >= 6 ? 'observed' : 'insufficient';
+    return {
+      method: 'local-rms-energy-v1',
+      quality: quality,
+      durationSeconds: Math.round(durationSeconds * 100) / 100,
+      voiceActivityRatioPercent: voiceActivityRatioPercent,
+      pauseCount: pauses.length,
+      longPauseCount: pauses.filter(function (pause) { return pause.durationMs >= settings.longPauseMs; }).length,
+      longestPauseMs: pauses.reduce(function (longest, pause) { return Math.max(longest, pause.durationMs); }, 0),
+      pauses: pauses.slice(0, 40),
+      thresholdRms: Math.round(threshold * 100000) / 100000
+    };
+  }
+
   function median(values) {
     if (!values.length) return null;
     const sorted = values.slice().sort(function (a, b) { return a - b; });
@@ -214,7 +287,7 @@
     };
   }
 
-  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, WORD_MARK_TYPES };
+  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, summarizeLowEnergyFrames, WORD_MARK_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.ReadingAssessmentProtocol = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
