@@ -349,7 +349,7 @@
     const correct = firstCorrect + secondCorrect;
     const questionCount = firstAnswers.length + secondAnswers.length;
     const metricInput = hasValidGaze ? combinedMetrics : this.metricsEngine.getEmptyMetrics();
-    const risk = this.metricsEngine.classifyRisk(this.currentStudent.grade, summary.durationSeconds, summary.wordCount, metricInput, correct, questionCount);
+    const risk = this.metricsEngine.classifyRisk(this.currentStudent.grade, summary.durationSeconds, summary.wordCount, metricInput, correct, questionCount, summary.comparableMode);
     risk.hasValidGaze = hasValidGaze;
     if (hasValidGaze && this.readingSegments.some(segment => !segment.hasValidGaze)) risk.reasons.push('اختلفت جودة إشارة النظر بين مقطعي القراءة؛ راجع كل مقطع على حدة.');
     const readingSegments = this.readingSegments.map(segment => ({
