@@ -29,5 +29,6 @@ jobs:
           node --check public/js/assessment-protocol.js
           node --check public/js/dashboard.js
           node --check public/js/metrics.js
+          node --check public/js/pages-demo-mode.js
           node --check public/js/report.js
           node --check public/js/tracker.js
