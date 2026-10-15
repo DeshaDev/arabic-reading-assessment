@@ -22,6 +22,7 @@
     });
     this.audioRecords = {};
     this.audioCaptureErrors = {};
+    this.audioSessionToken = (this.audioSessionToken || 0) + 1;
     this.discardAudioOnStop = false;
     this.primaryText = text;
     this.secondText = (window.ARABIC_ALTERNATE_TEXTS || []).find(item => item.grade === text.grade) || text;
@@ -214,10 +215,12 @@
       if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType = 'audio/webm;codecs=opus';
       else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) options.mimeType = 'audio/mp4';
       const recorder = new MediaRecorder(stream, options);
+      const captureToken = this.audioSessionToken;
       const chunks = [];
       recorder.ondataavailable = event => { if (event.data && event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = () => {
-        if (!this.discardAudioOnStop) {
+        const discardThisRecording = this.discardAudioOnStop || captureToken !== this.audioSessionToken;
+        if (!discardThisRecording) {
           const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
           if (blob.size > 0) {
             const old = this.audioRecords[passageIndex];
@@ -230,7 +233,7 @@
         this.activeAudioStream = null;
         this.activeRecorder = null;
         if (this.audioStopResolve) {
-          this.audioStopResolve(this.discardAudioOnStop ? null : (this.audioRecords[passageIndex] || null));
+          this.audioStopResolve(discardThisRecording ? null : (this.audioRecords[passageIndex] || null));
           this.audioStopResolve = null;
         }
       };
