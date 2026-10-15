@@ -3,15 +3,7 @@
  * خوارزمية I-VT لتصنيف التثبيت والقفزات، مع مراعاة اتجاه القراءة من اليمين إلى اليسار (RTL)
  */
 
-// المعايير المرجعية لمؤشرات القراءة باللغة العربية حسب الصف الدراسي
-const ARABIC_READING_NORMS = {
-  1: { avgWpm: 40, stdWpm: 12, avgFixationMs: 270, stdFixationMs: 40, maxNormalRegressionRate: 22 },
-  2: { avgWpm: 60, stdWpm: 14, avgFixationMs: 250, stdFixationMs: 35, maxNormalRegressionRate: 19 },
-  3: { avgWpm: 75, stdWpm: 15, avgFixationMs: 235, stdFixationMs: 30, maxNormalRegressionRate: 17 },
-  4: { avgWpm: 92, stdWpm: 16, avgFixationMs: 220, stdFixationMs: 28, maxNormalRegressionRate: 15 },
-  5: { avgWpm: 112, stdWpm: 18, avgFixationMs: 210, stdFixationMs: 25, maxNormalRegressionRate: 14 },
-  6: { avgWpm: 135, stdWpm: 20, avgFixationMs: 200, stdFixationMs: 22, maxNormalRegressionRate: 12 }
-};
+// Prototype measurements are descriptive only; no clinical or age-grade norms are embedded.
 
 class EyeMetricsEngine {
   constructor() {
@@ -172,85 +164,52 @@ class EyeMetricsEngine {
    * حساب تقييم وتصنيف المخاطر المرجعي بناءً على مؤشرات الصف الدراسي
    */
   classifyRisk(grade, durationSeconds, wordsCount, metrics, comprehensionScore, comprehensionTotal) {
-    const norm = ARABIC_READING_NORMS[grade] || ARABIC_READING_NORMS[3];
-
-    // 1. حساب سرعة القراءة بالكلمة في الدقيقة (WPM)
-    const effectiveMinutes = Math.max(0.05, durationSeconds / 60.0);
-    const calculatedWpm = Math.round(wordsCount / effectiveMinutes);
-
-    // 2. التحقق من توفر بيانات حركة العين الحقيقية
-    const hasValidGaze = metrics && metrics.totalFixations >= 3 && metrics.avgFixationDurationMs > 0;
-
+    const duration = Number(durationSeconds);
+    const wordCount = Number(wordsCount);
+    const validDuration = Number.isFinite(duration) && duration >= 0;
+    const validWords = Number.isFinite(wordCount) && wordCount > 0;
+    const rawWpm = validDuration && duration >= 15 && validWords
+      ? Math.round((wordCount / duration) * 60)
+      : null;
+    const paceLooksPlausible = rawWpm !== null && rawWpm > 0 && rawWpm <= 240;
+    const hasValidGaze = !!(
+      metrics &&
+      Number(metrics.totalFixations) >= 3 &&
+      Number(metrics.avgFixationDurationMs) > 0
+    );
     const reasons = [];
-    let riskScore = 20; // قاعدة الانطلاق
 
-    // تقييم سرعة القراءة WPM (مقياس ثابت وموثوق)
-    const wpmZ = (norm.avgWpm - calculatedWpm) / norm.stdWpm;
-    if (wpmZ > 1.8) {
-      riskScore += 30;
-      reasons.push(`سرعة القراءة منخفضة بشكل ملحوظ (${calculatedWpm} كلمة/دقيقة مقابل المعدل الطبيعي ${norm.avgWpm} ك/د لصفه).`);
-    } else if (wpmZ > 0.8) {
-      riskScore += 15;
-      reasons.push(`سرعة القراءة (${calculatedWpm} ك/د) أقل من متوسط أقرانه (${norm.avgWpm} ك/د).`);
+    if (!validDuration || duration < 15) {
+      reasons.push('مدة القراءة أقل من 15 ثانية؛ لا نحسب سرعة قراءة قابلة للتفسير من هذه الجلسة.');
     }
-
-    // تقييم الفهم القرائي (مقياس سلوكي موثوق)
-    const compPercent = (comprehensionScore / Math.max(1, comprehensionTotal)) * 100;
-    if (compPercent < 50) {
-      riskScore += 25;
-      reasons.push(`درجة استيعاب منخفضة للنص (${comprehensionScore} من ${comprehensionTotal}) تشير لصعوبة استيعاب المقروء.`);
+    if (!validWords) {
+      reasons.push('لم نتمكن من حساب عدد كلمات صالح من النص المعروض.');
     }
-
-    // تقييم مؤشرات حركة العين فقط إذا كانت البيانات حقيقية وملتقطة من الكاميرا
+    if (rawWpm !== null && rawWpm > 240) {
+      reasons.push('السرعة المحسوبة أعلى من نطاق فحص الجودة التقني؛ تحقق من مدة الجلسة وعدد الكلمات قبل تفسيرها.');
+    }
     if (hasValidGaze) {
-      const fixZ = (metrics.avgFixationDurationMs - norm.avgFixationMs) / norm.stdFixationMs;
-      const regDiff = metrics.regressionRatePercent - norm.maxNormalRegressionRate;
-
-      if (metrics.avgFixationDurationMs > (norm.avgFixationMs + 1.5 * norm.stdFixationMs)) {
-        riskScore += 25;
-        reasons.push(`طول غير معتاد في مدة التثبيت البصري (${metrics.avgFixationDurationMs} مللي ثانية مقارنة بالمعدل الطبيعي ${norm.avgFixationMs}ms)، مما يشير لبطء فك شفرة الكلمة.`);
-      } else if (metrics.avgFixationDurationMs > norm.avgFixationMs) {
-        riskScore += 10;
-      }
-
-      if (regDiff > 12) {
-        riskScore += 25;
-        reasons.push(`نسبة ارتداد بصري مرتفعة جداً (${metrics.regressionRatePercent}% مقارنة بالحد الأقصى لصفه ${norm.maxNormalRegressionRate}%)، مما يعكس ارتباكاً وتشتتاً عند تتبع النص العربي.`);
-      } else if (regDiff > 4) {
-        riskScore += 10;
-        reasons.push(`تكرار ارتداد النظر للخلف أعلى من المتوسط لصفه الدراسي.`);
-      }
+      reasons.push('تم تسجيل عينات نظر كافية مبدئيًا بعد المعايرة؛ هذه القياسات الوصفية ليست معيارًا تشخيصيًا.');
     } else {
-      reasons.push('⚠️ لم تتوفر إشارات حركة عين كافية من الكاميرا في هذه الجلسة؛ اعتمد التقييم على زمن القراءة وأسئلة الفهم فقط كفرز مبدئي سلوكي.');
+      reasons.push('بيانات النظر غير كافية أو لم تكتمل معايرتها؛ لم تُستخدم مؤشرات التثبيت والارتداد في هذا الملخص.');
     }
 
-    // تصنيف مستوى الخطر النهائي
-    let level = 'low';
-    let levelAr = 'مؤشر خطر منخفض (ضمن النطاق الطبيعي)';
-    let color = '#10b981'; // أخضر
-
-    if (riskScore >= 65) {
-      level = 'high';
-      levelAr = 'مؤشر خطر مرتفع (مؤشرات قوية لصعوبة القراءة)';
-      color = '#ef4444'; // أحمر
-    } else if (riskScore >= 40) {
-      level = 'moderate';
-      levelAr = 'مؤشر خطر متوسط (يحتاج متابعة وتدريب)';
-      color = '#f59e0b'; // أصفر برتقالي
+    const score = Number(comprehensionScore);
+    const total = Number(comprehensionTotal);
+    if (Number.isFinite(score) && Number.isFinite(total) && total > 0) {
+      reasons.push('إجابات فهم المقروء: ' + score + ' من ' + total + '. راجع الإجابات مع ملاحظة المعلم والسياق التعليمي.');
     } else {
-      if (hasValidGaze) {
-        reasons.push('حركات العين وسرعة القراءة تتبع نمطاً طبيعياً وسلساً لعمره وصفه الدراسي.');
-      }
+      reasons.push('لم تتوفر إجابات فهم مقروء مكتملة لهذه الجلسة.');
     }
 
+    const sufficient = validDuration && duration >= 15 && validWords && paceLooksPlausible;
     return {
-      level,
-      levelAr,
-      score: Math.min(100, riskScore),
-      color,
-      wpm: calculatedWpm,
-      normWpm: norm.avgWpm,
-      normFixationMs: norm.avgFixationMs,
+      level: sufficient ? 'observations' : 'insufficient',
+      levelAr: sufficient ? 'مؤشرات وصفية — لا تصنيف تشخيصي' : 'بيانات غير كافية للتفسير',
+      score: null,
+      color: '#356f60',
+      wpm: paceLooksPlausible ? rawWpm : null,
+      observedWordCount: validWords ? wordCount : 0,
       hasValidGaze,
       reasons
     };
@@ -271,5 +230,5 @@ class EyeMetricsEngine {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { EyeMetricsEngine, ARABIC_READING_NORMS };
+  module.exports = { EyeMetricsEngine };
 }
