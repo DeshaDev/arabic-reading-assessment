@@ -2,7 +2,7 @@
   'use strict';
 
   function tokenizeArabicWords(text) {
-    const source = String(text || '').normalize('NFC');
+    const source = String(text || '');
     const pattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
     const tokens = [];
     let match;
