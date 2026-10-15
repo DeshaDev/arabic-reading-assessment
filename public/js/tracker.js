@@ -197,6 +197,15 @@ class ArabicEyeTracker {
       t: performance.now()
     };
 
+    // A visible diagnostic prediction lets the pupil/teacher see whether the estimate
+    // follows the target during calibration. This is a prediction, not measured eye truth.
+    const calibrationDot = document.getElementById('calib-prediction-dot');
+    if (calibrationDot) {
+      calibrationDot.style.left = this.currentGaze.x + 'px';
+      calibrationDot.style.top = this.currentGaze.y + 'px';
+      calibrationDot.style.display = 'block';
+    }
+
     if (this.onGazePoint) {
       this.onGazePoint(this.currentGaze);
     }
