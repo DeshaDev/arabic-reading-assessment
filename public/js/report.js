@@ -58,6 +58,7 @@ class ParentReportGenerator {
     if (segments.length) {
       html += segments.map(function (segment, index) {
         const mode = segment.mode === 'oral' ? 'جهرية' : 'صامتة';
+        const segmentWpm = typeof window !== 'undefined' && window.ReadingAssessmentProtocol ? window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) : null;
         return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'توجد عينات كافية مبدئيًا' : 'غير متاحة أو غير كافية') + '.</p></div></div>';
       }).join('');
     } else {
