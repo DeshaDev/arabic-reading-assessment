@@ -32,3 +32,7 @@ jobs:
           node --check public/js/pages-demo-mode.js
           node --check public/js/report.js
           node --check public/js/tracker.js
+          node --check lib/reading-alignment.js
+          node --check lib/transcription-config.js
+          node --check test/server.integration.test.js
+          node --check test/transcription-config.test.js
