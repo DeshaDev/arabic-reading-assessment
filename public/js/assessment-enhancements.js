@@ -349,6 +349,11 @@
     });
     rows.sort((a, b) => a.top - b.top).forEach((row, rowIndex) => row.items.forEach(item => { item.lineNumber = rowIndex + 1; }));
     this.currentHighlightedGazeWord = null;
+    this.gazeWordCandidateIndex = null;
+    this.gazeWordCandidateFrames = 0;
+    this.stableGazeWordIndex = null;
+    this.stableGazeWordLastSeenAt = 0;
+    this.gazeBoxesScrollY = window.scrollY || 0;
     const gazeReadout = document.getElementById('live-gaze-readout');
     if (gazeReadout) gazeReadout.textContent = this.calibrationCompleted
       ? 'التتبع مُعاير تقنيًا مبدئيًا؛ ابدأ القراءة لرؤية الكلمة والسطر المقدّرين.'
@@ -356,8 +361,15 @@
     this.tracker.onGazePoint = gaze => {
       if (!this.segmentActive || this.stage !== 'reading') return;
       const rect = wrapper.getBoundingClientRect();
-      const x = Math.max(4, Math.min(wrapper.clientWidth - 4, gaze.x - rect.left));
-      const y = Math.max(4, Math.min(wrapper.clientHeight - 4, gaze.y - rect.top));
+      // Keep true viewport-relative gaze offsets: clamping an outside gaze to the text edge fabricates a hit.
+      const x = gaze.x - rect.left;
+      const y = gaze.y - rect.top;
+      const insideWrapper = gaze.x >= rect.left && gaze.x <= rect.right && gaze.y >= rect.top && gaze.y <= rect.bottom;
+      const scrollY = window.scrollY || 0;
+      if (scrollY !== this.gazeBoxesScrollY) {
+        this.gazeBoxesScrollY = scrollY;
+        this.gazeWordBoxes.forEach(item => { item.rect = item.element.getBoundingClientRect(); });
+      }
       let wordIndex = null;
       if (this.calibrationCompleted && gaze.x >= rect.left && gaze.x <= rect.right && gaze.y >= rect.top && gaze.y <= rect.bottom) {
         const hit = document.elementFromPoint(gaze.x, gaze.y);
@@ -382,7 +394,27 @@
         }
       }
       const gazeReadout = document.getElementById('live-gaze-readout');
-      const wordItem = wordIndex == null ? null : this.gazeWordBoxes.find(item => item.wordIndex === wordIndex);
+      const now = Number(gaze.t) || performance.now();
+      if (wordIndex != null) {
+        if (wordIndex === this.gazeWordCandidateIndex) {
+          this.gazeWordCandidateFrames++;
+        } else {
+          this.gazeWordCandidateIndex = wordIndex;
+          this.gazeWordCandidateFrames = 1;
+        }
+        if (this.gazeWordCandidateFrames >= 2) {
+          this.stableGazeWordIndex = wordIndex;
+          this.stableGazeWordLastSeenAt = now;
+        }
+      } else {
+        this.gazeWordCandidateIndex = null;
+        this.gazeWordCandidateFrames = 0;
+        if (now - this.stableGazeWordLastSeenAt > 300) this.stableGazeWordIndex = null;
+      }
+      // Require two consecutive hits before moving the highlight, reducing single-frame flicker.
+      const wordItem = this.stableGazeWordIndex == null
+        ? null
+        : this.gazeWordBoxes.find(item => item.wordIndex === this.stableGazeWordIndex);
       if (this.currentHighlightedGazeWord && (!wordItem || this.currentHighlightedGazeWord !== wordItem.element)) {
         this.currentHighlightedGazeWord.classList.remove('is-current-gaze');
         this.currentHighlightedGazeWord = null;
@@ -393,7 +425,7 @@
           this.currentHighlightedGazeWord = wordItem.element;
         }
         if (gazeReadout) gazeReadout.textContent = 'النظر المقدّر: «' + wordItem.wordText + '» · السطر ' + wordItem.lineNumber + ' من ' + Math.max(1, ...this.gazeWordBoxes.map(item => item.lineNumber || 1));
-      } else if (gazeReadout) {
+      } else if (gazeReadout && now - this.stableGazeWordLastSeenAt > 300) {
         gazeReadout.textContent = this.calibrationCompleted
           ? 'إشارة النظر خارج النص أو بين الكلمات؛ لم تُربط بكلمة.'
           : 'تتبع الكلمات متوقف حتى اجتياز المعايرة.';
@@ -407,7 +439,8 @@
           y: y,
           wordIndex: wordIndex
         });
-        this.visualizer.drawLiveGaze(x, y);
+        if (insideWrapper) this.visualizer.drawLiveGaze(x, y);
+        else this.visualizer.clear();
       }
     };
     this.segmentActive = false;
