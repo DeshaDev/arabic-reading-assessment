@@ -1092,9 +1092,9 @@
     if (button) {
       button.dataset.busy = 'true';
       button.disabled = true;
-      button.textContent = 'جارٍ تفريغ الصوت ومقارنته…';
+      button.textContent = 'جارٍ تفريغ القراءة ثم مطابقة توقيت الكلمات وربطها بعينات النظر…';
     }
-    if (output) output.textContent = 'يُرسل التسجيل الآن إلى خدمة التفريغ المهيأة. لن يُحفظ ملف الصوت في قاعدة بيانات نَبراس.';
+    if (output) output.textContent = 'يُرسل التسجيل إلى OpenAI للتفريغ، ثم يُرسل في تمرير توقيت مستقل افتراضيًا ما لم تعطّله إعدادات الخادم. هذه العملية قد تستخدم API إضافيًا. لن يُحفظ ملف الصوت في قاعدة بيانات نَبراس.';
     try {
       const bytes = new TextEncoder().encode(segment.content || '');
       let binary = '';
