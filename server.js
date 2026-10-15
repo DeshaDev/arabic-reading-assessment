@@ -39,7 +39,9 @@ function readDatabase() {
 }
 
 function writeDatabase(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  const temporaryFile = DB_FILE + '.tmp';
+  fs.writeFileSync(temporaryFile, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  fs.renameSync(temporaryFile, DB_FILE);
 }
 
 // REST endpoints. This server is a local prototype, not a production student-data service.
@@ -146,19 +148,81 @@ app.post('/api/sessions', (req, res) => {
     hasValidGaze: body.hasValidGaze === true && durationSeconds >= 10 && metrics.totalFixations >= 2,
     reasons: Array.isArray(risk.reasons) ? risk.reasons.slice(0, 12).filter(x => typeof x === 'string').map(x => x.slice(0, 400)) : []
   };
+  const clampInt = (value, max) => Math.max(0, Math.min(max, Math.floor(Number(value) || 0)));
+  const optionalSeconds = value => {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 && number <= 3600 ? Math.round(number * 100) / 100 : null;
+  };
+  const safeReadingSegments = Array.isArray(body.readingSegments) ? body.readingSegments.slice(0, 2).map(segment => {
+    const source = segment && typeof segment === 'object' ? segment : {};
+    const mode = source.mode === 'oral' || source.mode === 'silent' ? source.mode : 'silent';
+    const segmentMetrics = source.metrics && typeof source.metrics === 'object' ? source.metrics : {};
+    return {
+      passageId: typeof source.passageId === 'string' ? source.passageId.slice(0, 80) : '',
+      passageTitle: typeof source.passageTitle === 'string' ? source.passageTitle.slice(0, 180) : '',
+      mode,
+      durationSeconds: optionalSeconds(source.durationSeconds) || 0,
+      wordCount: clampInt(source.wordCount, 2000),
+      errors: clampInt(source.errors, 200),
+      omissions: clampInt(source.omissions, 200),
+      selfCorrections: clampInt(source.selfCorrections, 200),
+      hasValidGaze: source.hasValidGaze === true,
+      metrics: {
+        totalFixations: clampInt(segmentMetrics.totalFixations, 10000),
+        avgFixationDurationMs: clampInt(segmentMetrics.avgFixationDurationMs, 10000),
+        forwardSaccadesCount: clampInt(segmentMetrics.forwardSaccadesCount, 100000),
+        regressionsCount: clampInt(segmentMetrics.regressionsCount, 100000),
+        regressionRatePercent: Math.max(0, Math.min(100, Number(segmentMetrics.regressionRatePercent) || 0)),
+        sampleCount: clampInt(segmentMetrics.sampleCount, 1000000)
+      }
+    };
+  }) : [];
+  const assistanceTypes = ['none', 'prompt', 'word', 'shared'];
+  const assistanceType = assistanceTypes.includes(body.assistanceType) ? body.assistanceType : 'none';
+  const readingIndependently = typeof body.readingIndependently === 'boolean' ? body.readingIndependently : null;
+  const teacherNotes = typeof body.teacherNotes === 'string' ? body.teacherNotes.trim().slice(0, 1000) : '';
+  const ranDurationSeconds = optionalSeconds(body.ranDurationSeconds);
+  const ranErrors = clampInt(body.ranErrors, 36);
+  const totalAssessmentDurationSeconds = optionalSeconds(body.totalAssessmentDurationSeconds);
+  const firstComprehensionScore = clampInt(body.firstComprehensionScore, 30);
+  const firstComprehensionTotal = clampInt(body.firstComprehensionTotal, 30);
+  const secondComprehensionScore = clampInt(body.secondComprehensionScore, 30);
+  const secondComprehensionTotal = clampInt(body.secondComprehensionTotal, 30);
+  if (firstComprehensionScore > firstComprehensionTotal || secondComprehensionScore > secondComprehensionTotal) {
+    return res.status(400).json({ error: 'قيم فهم المقروء لكل مقطع غير صالحة.' });
+  }
   const session = {
     id: 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
     studentId,
     studentName: student.name,
     grade,
     date: new Date().toISOString(),
+    protocolVersion: typeof body.protocolVersion === 'string' ? body.protocolVersion.slice(0, 80) : 'legacy',
     textId,
     textTitle,
+    secondTextId: typeof body.secondTextId === 'string' ? body.secondTextId.slice(0, 80) : '',
+    secondTextTitle: typeof body.secondTextTitle === 'string' ? body.secondTextTitle.slice(0, 180) : '',
     observedWordCount: Math.max(0, Math.min(2000, Number(body.observedWordCount) || 0)),
     durationSeconds,
+    totalAssessmentDurationSeconds,
     wpm,
     comprehensionScore,
     comprehensionTotal,
+    firstComprehensionScore,
+    firstComprehensionTotal,
+    secondComprehensionScore,
+    secondComprehensionTotal,
+    ranDurationSeconds,
+    ranErrors,
+    readingSegments: safeReadingSegments,
+    teacherMarkedErrors: clampInt(body.teacherMarkedErrors, 600),
+    omissions: clampInt(body.omissions, 600),
+    selfCorrections: clampInt(body.selfCorrections, 600),
+    readingIndependently,
+    assistanceType,
+    teacherNotes,
+    audioRecorded: body.audioRecorded === true,
     metrics,
     hasValidGaze: riskClassification.hasValidGaze,
     riskClassification
