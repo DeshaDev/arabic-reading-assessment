@@ -123,16 +123,45 @@ class ParentReportGenerator {
         const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
         const typeLabels = { substitution: 'استبدال محتمل', deletion: 'حذف محتمل من التفريغ', insertion: 'كلمة إضافية', repetition: 'تكرار محتمل' };
         const differences = (alignment.operations || []).filter(function (operation) { return operation.type !== 'match'; }).slice(0, 80);
+        const wordTimestamps = Array.isArray(analysis.wordTimestamps) ? analysis.wordTimestamps : [];
+        const speechGazeContext = Array.isArray(analysis.speechGazeContext) ? analysis.speechGazeContext : [];
+        const timestampAlignment = analysis.timestampAlignment || {};
+        const formatStamp = function (seconds) {
+          const value = Math.max(0, Number(seconds) || 0);
+          return Math.floor(value / 60) + ':' + (value % 60).toFixed(2).padStart(5, '0');
+        };
         const diffHtml = differences.length
           ? '<ul>' + differences.map(function (operation) {
+            const timed = operation.transcriptIndex == null ? null : wordTimestamps.find(function (word) {
+              return Number(word.transcriptIndex) === Number(operation.transcriptIndex) &&
+                word.timingQuality === 'cross-model-agreement';
+            });
+            const gazeTime = operation.transcriptIndex == null ? null : speechGazeContext.find(function (context) {
+              return Number(context.targetIndex) === Number(operation.targetIndex) &&
+                Number(context.transcriptIndex) === Number(operation.transcriptIndex) &&
+                context.timingAvailable === true;
+            });
+            const timingHtml = timed
+              ? '<p>موضع الكلمة في التسجيل: ' + formatStamp(timed.startSeconds) + '–' + formatStamp(timed.endSeconds) + '.</p>'
+              : '<p>توقيت الكلمة غير متاح لأن محركي التفريغ لم يتفقا عليها.</p>';
+            const gazeHtml = gazeTime && gazeTime.quality === 'observed'
+              ? '<p>إشارة النظر المقدّرة أثناء النطق: ' + (Number(gazeTime.gazeSampleCount) || 0) + ' عينة، و' +
+                (Number(gazeTime.mappedGazeSampleCount) || 0) + ' عينة مرتبطة بمناطق كلمات. نسبة العينات المرتبطة بالكلمة المستهدفة: ' +
+                (gazeTime.targetWordGazePercent == null ? 'غير متاحة' : Number(gazeTime.targetWordGazePercent) + '%') + '.</p>'
+              : '<p>لم تتوفر عينات نظر متزامنة كافية لهذه اللحظة الصوتية.</p>';
             return '<li><strong>' + safe(typeLabels[operation.type] || 'فرق محتمل') + ':</strong> النص ' +
-              safe(operation.targetWord || '—') + ' · التفريغ ' + safe(operation.spokenWord || 'لم يظهر') + '</li>';
+              safe(operation.targetWord || '—') + ' · التفريغ ' + safe(operation.spokenWord || 'لم يظهر') +
+              timingHtml + gazeHtml + '</li>';
           }).join('') + '</ul>'
           : '<p>لم يرصد التطابق النصي اختلافًا واضحًا في التفريغ؛ هذا لا يثبت خلو القراءة من الأخطاء.</p>';
+        const timingCoverageHtml = timestampAlignment && timestampAlignment.enabled
+          ? '<p>توقيتات الكلمات المتفق عليها بين المحركين: ' + (Number(timestampAlignment.matchedWordCount) || 0) + ' / ' +
+            (Number(timestampAlignment.transcriptWordCount) || 0) + ' (' + (Number(timestampAlignment.coveragePercent) || 0) + '%).</p>'
+          : '<p>تم تعطيل تمرير توقيت الكلمات أو لم يتوفر؛ لن يُعرض توقيت تخميني.</p>';
         html += '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(analysis.passageTitle || 'مقطع القراءة') + '</h4><p><strong>التفريغ:</strong> ' + transcript + '</p>' +
           '<p>استبدال: ' + (Number(counts.substitutions) || 0) + ' · حذف محتمل: ' + (Number(counts.deletions) || 0) +
           ' · إضافة: ' + (Number(counts.insertions) || 0) + ' · تكرار: ' + (Number(counts.repetitions) || 0) +
-          ' · فرق التفريغ التقريبي: ' + rate + '.</p>' + diffHtml +
+          ' · فرق التفريغ التقريبي: ' + rate + '.</p>' + timingCoverageHtml + diffHtml +
           '<p class="text-muted">محرك التفريغ: ' + safe(analysis.model || 'غير محدد') + ' · ' + safe(analysis.analyzedAt || '') + '</p></div></div>';
       });
       html += '</div></section>';
