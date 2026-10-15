@@ -1,6 +1,6 @@
 {
   "name": "nebras-arabic-reading-assessment",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "Arabic reading session prototype with transparent descriptive metrics",
   "main": "index.js",
   "scripts": {
