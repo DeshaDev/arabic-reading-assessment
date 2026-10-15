@@ -456,60 +456,11 @@
         energies[frame] = rms;
         peakRms = Math.max(peakRms, rms);
       }
-      const threshold = Math.max(0.003, peakRms * 0.10);
-      const active = energies.map(value => value >= threshold);
-      // Bridge very short energy dips so a single consonant or breath does not split speech.
-      let cursor = 0;
-      while (cursor < active.length) {
-        if (active[cursor]) { cursor++; continue; }
-        const start = cursor;
-        while (cursor < active.length && !active[cursor]) cursor++;
-        const gapLength = cursor - start;
-        if (start > 0 && cursor < active.length && gapLength <= 4) {
-          for (let k = start; k < cursor; k++) active[k] = true;
-        }
-      }
-      const regions = [];
-      let regionStart = null;
-      for (let frame = 0; frame < active.length; frame++) {
-        if (active[frame] && regionStart === null) regionStart = frame;
-        if (!active[frame] && regionStart !== null) {
-          regions.push({ start: regionStart, end: frame });
-          regionStart = null;
-        }
-      }
-      if (regionStart !== null) regions.push({ start: regionStart, end: active.length });
-      const pauses = [];
-      for (let i = 1; i < regions.length; i++) {
-        const gapFrames = regions[i].start - regions[i - 1].end;
-        const durationMs = Math.round(gapFrames * frameDurationSeconds * 1000);
-        if (durationMs >= 280) {
-          pauses.push({
-            startSeconds: Math.round(regions[i - 1].end * frameDurationSeconds * 100) / 100,
-            endSeconds: Math.round(regions[i].start * frameDurationSeconds * 100) / 100,
-            durationMs: durationMs,
-            kind: durationMs >= 700 ? 'long-low-energy-gap' : 'low-energy-gap'
-          });
-        }
-      }
-      const activeFrames = active.filter(Boolean).length;
-      const voiceActivityRatioPercent = frameCount
-        ? Math.round(activeFrames / frameCount * 1000) / 10
-        : 0;
-      const quality = buffer.duration >= 2 && peakRms >= 0.006 && activeFrames >= 6
-        ? 'observed'
-        : 'insufficient';
-      return {
-        method: 'local-rms-energy-v1',
-        quality: quality,
-        durationSeconds: Math.round(buffer.duration * 100) / 100,
-        voiceActivityRatioPercent: voiceActivityRatioPercent,
-        pauseCount: pauses.length,
-        longPauseCount: pauses.filter(pause => pause.durationMs >= 700).length,
-        longestPauseMs: pauses.reduce((longest, pause) => Math.max(longest, pause.durationMs), 0),
-        pauses: pauses.slice(0, 40),
-        note: 'رصد محلي لفترات انخفاض الطاقة الصوتية داخل التسجيل؛ قد تتأثر بالضجيج والهمس ولا تمثل بالضرورة ترددًا أو خطأ قراءة.'
-      };
+      const summary = window.ReadingAssessmentProtocol.summarizeLowEnergyFrames(
+        energies, frameDurationSeconds, peakRms, { durationSeconds: buffer.duration }
+      );
+      summary.note = 'رصد محلي لفترات انخفاض الطاقة الصوتية داخل التسجيل؛ قد تتأثر بالضجيج والهمس ولا تمثل بالضرورة ترددًا أو خطأ قراءة.';
+      return summary;
     } catch (error) {
       return {
         method: 'local-rms-energy-v1',
