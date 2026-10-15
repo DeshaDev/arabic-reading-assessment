@@ -202,21 +202,25 @@ class ArabicEyeTracker {
     }
   }
 
-  addCalibrationSample(targetX, targetY) {
-    return new Promise(resolve => {
-      if (!this.isStreaming || typeof webgazer === 'undefined' || typeof webgazer.recordScreenPosition !== 'function') {
-        resolve(false);
-        return;
+  async addCalibrationSample(targetX, targetY) {
+    if (!this.isStreaming || !this.isCameraActive() ||
+        typeof webgazer === 'undefined' || typeof webgazer.recordScreenPosition !== 'function') {
+      return false;
+    }
+    try {
+      // Capture separate frames while the learner continues looking at this target.
+      // Repeating five calls synchronously re-used essentially the same eye features.
+      for (let sample = 0; sample < 3; sample++) {
+        if (!this.isStreaming || !this.isCameraActive()) return false;
+        webgazer.recordScreenPosition(targetX, targetY, 'click');
+        if (sample < 2) await new Promise(resolve => setTimeout(resolve, 140));
       }
-      try {
-        for (let i = 0; i < 5; i++) webgazer.recordScreenPosition(targetX, targetY, 'click');
-        this.calibrationClicks++;
-        setTimeout(() => resolve(true), 150);
-      } catch (err) {
-        console.warn('Calibration sample was not recorded:', err);
-        resolve(false);
-      }
-    });
+      this.calibrationClicks++;
+      return true;
+    } catch (err) {
+      console.warn('Calibration sample was not recorded:', err);
+      return false;
+    }
   }
 
   computeCalibration() {
