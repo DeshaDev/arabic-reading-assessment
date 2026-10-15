@@ -392,7 +392,7 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
     const form = new FormData();
     form.append('file', new Blob([req.body], { type: requestedType }), 'reading.' + extensionByType[requestedType]);
     form.append('model', model);
-    form.append('language', 'ar');
+    form.append('languages[]', 'ar');
     form.append('response_format', 'json');
 
     const providerResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
