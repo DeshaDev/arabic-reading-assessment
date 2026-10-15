@@ -159,7 +159,7 @@
       '</span><div class="timer" id="reading-timer-display">00:00</div></div><div class="reading-canvas-wrapper" id="reading-wrapper"><div class="arabic-text-content" id="arabic-text-view">' +
       this.currentText.content + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
       (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in"> تسجيل الصوت للمراجعة (اختياري، يبقى على هذا الجهاز ولا يُرفع إلى الخادم)</label></div>' : '') +
-      '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء رصدها المعلم</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">كلمات محذوفة</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
+      '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء إضافية غير محددة على الكلمات</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">حذف إضافي غير محدد</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية إضافية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
       '<p class="text-muted">المعلم هو من يدوّن هذه الملاحظات؛ لا يستنتجها النظام تلقائيًا.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
     const wrapper = document.getElementById('reading-wrapper');
     const canvas = document.getElementById('live-gaze-canvas');
@@ -276,16 +276,114 @@
     const hasValidGaze = !!(this.calibrationCompleted && this.tracker.isStreaming && durationSeconds >= 10 &&
       samples.length >= 15 && gazeMetrics.totalFixations >= 2 && gazeMetrics.avgFixationDurationMs > 0);
     this.readingSegments[index] = {
-      passageId: this.currentText.id, passageTitle: this.currentText.title, content: this.currentText.content,
-      mode: this.currentReadingMode, durationSeconds: durationSeconds, wordCount: window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content),
-      errors: numberFrom('segment-errors'), omissions: numberFrom('segment-omissions'), selfCorrections: numberFrom('segment-corrections'),
-      hasValidGaze: hasValidGaze, metrics: gazeMetrics, gazeSamples: samples,
+      passageId: this.currentText.id,
+      passageTitle: this.currentText.title,
+      content: this.currentText.content,
+      mode: this.currentReadingMode,
+      durationSeconds: durationSeconds,
+      wordCount: window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content),
+      baselineErrors: numberFrom('segment-errors'),
+      baselineOmissions: numberFrom('segment-omissions'),
+      baselineSelfCorrections: numberFrom('segment-corrections'),
+      errors: numberFrom('segment-errors'),
+      omissions: numberFrom('segment-omissions'),
+      selfCorrections: numberFrom('segment-corrections'),
+      wordMarks: [],
+      hasValidGaze: hasValidGaze,
+      metrics: gazeMetrics,
+      gazeSamples: samples,
       viewportWidth: document.getElementById('reading-wrapper')?.clientWidth || window.innerWidth,
       viewportHeight: document.getElementById('reading-wrapper')?.clientHeight || 360,
       audioUrl: audio && audio.url ? audio.url : null
     };
     this.rawGazeSamples.push.apply(this.rawGazeSamples, samples);
-    this.renderComprehension(index);
+    this.renderTeacherMarking(index);
+  };
+
+  proto.renderTeacherMarking = function (passageIndex) {
+    this.stage = 'teacher_marking';
+    const segment = this.readingSegments[passageIndex];
+    if (!segment) return this.renderComprehension(passageIndex);
+    this.selectedTeacherMarkType = this.selectedTeacherMarkType || 'substitution';
+    const container = document.getElementById('assessment-container');
+    const tokens = String(segment.content || '').match(/\n|[^\s]+/g) || [];
+    let wordIndex = 0;
+    const tokenMarkup = tokens.map(token => {
+      if (token === '\n') return '<br>';
+      const currentIndex = wordIndex++;
+      return '<button type="button" class="markable-word" data-word-index="' + currentIndex + '" aria-label="تحديد ملاحظة على كلمة ' + this.escapeHtml(token) + '">' +
+        this.escapeHtml(token) + '</button>';
+    }).join('');
+    container.innerHTML = '<div class="assessment-card fade-in"><div class="step-indicator">مراجعة قراءة المقطع ' + (passageIndex + 1) + ' من 2 · ملاحظات المعلم</div>' +
+      '<h2>علّم الكلمات التي لاحظت فيها تعثرًا</h2><p>هذه المراجعة اختيارية ويجريها المعلم بعد القراءة؛ لا يحلل النظام نطق الطفل تلقائيًا. اختر نوع الملاحظة ثم انقر الكلمة. الكلمات المعلّمة ليست تشخيصًا.</p>' +
+      '<div class="teacher-mark-toolbar"><span>نوع الملاحظة:</span>' +
+      '<button type="button" class="btn btn-sm mark-type active" data-mark-type="substitution">خطأ / استبدال</button>' +
+      '<button type="button" class="btn btn-sm mark-type" data-mark-type="omission">حذف</button>' +
+      '<button type="button" class="btn btn-sm mark-type" data-mark-type="hesitation">تردد</button>' +
+      '<button type="button" class="btn btn-sm mark-type" data-mark-type="selfCorrection">تصحيح ذاتي</button>' +
+      '<button type="button" class="btn btn-sm btn-outline" id="clear-word-marks">مسح علامات هذا المقطع</button></div>' +
+      '<div class="word-mark-legend"><span class="mark-key mark-substitution">خطأ / استبدال</span><span class="mark-key mark-omission">حذف</span><span class="mark-key mark-hesitation">تردد</span><span class="mark-key mark-selfCorrection">تصحيح ذاتي</span></div>' +
+      '<div class="teacher-mark-text" id="teacher-mark-text" dir="rtl">' + tokenMarkup + '</div>' +
+      '<div class="teacher-mark-summary" id="teacher-mark-summary" role="status"></div>' +
+      '<p class="text-muted">الأرقام اليدوية السابقة تمثل أخطاء إضافية غير محددة على الكلمات. اترك الكلمات سليمة إذا لم ترصد ملاحظة.</p>' +
+      '<div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.continueAfterTeacherMarking(' + passageIndex + ')">اعتماد الملاحظات والمتابعة إلى الفهم</button>' +
+      '<button class="btn btn-outline" onclick="window.assessmentManager.continueAfterTeacherMarking(' + passageIndex + ')">تخطي تعليم الكلمات</button></div></div>';
+
+    const wordsView = document.getElementById('teacher-mark-text');
+    const applyMarks = () => {
+      const marks = segment.wordMarks || [];
+      wordsView.querySelectorAll('[data-word-index]').forEach(button => {
+        const index = Number(button.getAttribute('data-word-index'));
+        const mark = marks.find(item => item.wordIndex === index);
+        button.className = 'markable-word' + (mark ? ' marked mark-' + mark.type : '');
+        button.title = mark ? ({
+          substitution: 'خطأ / استبدال',
+          omission: 'حذف',
+          hesitation: 'تردد',
+          selfCorrection: 'تصحيح ذاتي'
+        }[mark.type] || '') : 'انقر لإضافة ملاحظة';
+      });
+      const totals = window.ReadingAssessmentProtocol.summarizeWordMarks(marks);
+      const summary = document.getElementById('teacher-mark-summary');
+      if (summary) summary.textContent = 'الكلمات المعلّمة: ' + totals.total + ' · الأخطاء / الاستبدال: ' + totals.substitution +
+        ' · الحذف: ' + totals.omission + ' · التردد: ' + totals.hesitation + ' · التصحيح الذاتي: ' + totals.selfCorrection;
+    };
+    container.querySelectorAll('[data-mark-type]').forEach(button => {
+      button.addEventListener('click', () => {
+        this.selectedTeacherMarkType = button.getAttribute('data-mark-type');
+        container.querySelectorAll('[data-mark-type]').forEach(item => item.classList.toggle('active', item === button));
+      });
+    });
+    wordsView.addEventListener('click', event => {
+      const button = event.target.closest('[data-word-index]');
+      if (!button) return;
+      const index = Number(button.getAttribute('data-word-index'));
+      const marks = segment.wordMarks || (segment.wordMarks = []);
+      const existing = marks.findIndex(item => item.wordIndex === index);
+      if (existing >= 0) {
+        if (marks[existing].type === this.selectedTeacherMarkType) marks.splice(existing, 1);
+        else marks[existing].type = this.selectedTeacherMarkType;
+      } else {
+        marks.push({ wordIndex: index, type: this.selectedTeacherMarkType });
+      }
+      applyMarks();
+    });
+    document.getElementById('clear-word-marks').addEventListener('click', () => {
+      segment.wordMarks = [];
+      applyMarks();
+    });
+    applyMarks();
+  };
+
+  proto.continueAfterTeacherMarking = function (passageIndex) {
+    const segment = this.readingSegments[passageIndex];
+    if (segment) {
+      const counts = window.ReadingAssessmentProtocol.summarizeWordMarks(segment.wordMarks || []);
+      segment.errors = (segment.baselineErrors || 0) + counts.substitution + counts.hesitation;
+      segment.omissions = (segment.baselineOmissions || 0) + counts.omission;
+      segment.selfCorrections = (segment.baselineSelfCorrections || 0) + counts.selfCorrection;
+    }
+    this.renderComprehension(passageIndex);
   };
 
   proto.renderComprehension = function (passageIndex) {
