@@ -610,7 +610,7 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
       gazeSampleCount,
       mappedGazeSampleCount,
       targetWordSampleCount,
-      targetWordGazePercent: mappedGazeSampleCount
+      targetWordGazePercent: type !== 'insertion' && mappedGazeSampleCount
         ? Math.round(targetWordSampleCount / mappedGazeSampleCount * 1000) / 10 : null,
       dominantGazeWordIndex: item.dominantGazeWordIndex == null ? null : clampInt(item.dominantGazeWordIndex, 2000),
       dominantGazeWordSharePercent: item.dominantGazeWordSharePercent == null ? null
