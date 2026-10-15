@@ -315,7 +315,7 @@
   function assessCalibrationValidation(measurements, viewportWidth, viewportHeight) {
     const width = Math.max(1, Number(viewportWidth) || 1);
     const height = Math.max(1, Number(viewportHeight) || 1);
-    const tolerancePx = Math.round(Math.max(90, Math.min(width, height) * 0.22));
+    const tolerancePx = Math.round(Math.max(60, Math.min(width, height) * 0.12));
     const valid = (Array.isArray(measurements) ? measurements : []).filter(function (item) {
       return item && Number(item.sampleCount) >= 6 && Number.isFinite(Number(item.errorPx)) && Number(item.errorPx) >= 0;
     });
