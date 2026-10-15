@@ -243,105 +243,13 @@ class AssessmentSessionManager {
     }
   }
 
-  // المرحلة 2: المعايرة التفاعلية (5 نقاط)
+  // Fail closed if the advanced calibration module did not load.
+  // assessment-enhancements.js replaces this method with validated nine-point calibration.
   async startCalibration() {
-    if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
-      const container = document.getElementById('assessment-container');
-      container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص إذن الكاميرا أولًا، أو تابع الجلسة دون استخدام مؤشرات النظر. لن نعرض المعايرة على أنها مكتملة قبل تسجيل عيناتها.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع النظر</button></div></div>';
-      return;
-    }
-    this.stage = 'calibration';
+    this.calibrationCompleted = false;
     const container = document.getElementById('assessment-container');
-
-    container.innerHTML = `
-      <div class="calibration-stage fade-in" id="calib-stage">
-        <button class="btn btn-outline btn-sm" style="position: absolute; top: 20px; left: 20px; z-index: 10002; background: #fff;" onclick="window.assessmentManager.skipCalibration()">
-          تخطي المعايرة والبدء في القراءة فوراً ⏭️
-        </button>
-
-        <div class="calib-instructions">
-          <h3>🌟 معايرة تتبع النظر: انظر إلى النجمة وانقر عليها 3 مرات</h3>
-          <p id="calib-step-hint">النقطة 1 من 5: المركز - انقر فوق النجمة ⭐ (المتبقي: 3)</p>
-        </div>
-        <div class="calib-target" id="calib-target" title="انقر هنا">
-          <span>⭐</span>
-          <span class="calib-target-counter" id="star-count">0/3</span>
-        </div>
-      </div>
-    `;
-
-    this.tracker.resetCalibration();
-
-    const points = [
-      { name: 'المركز', x: window.innerWidth * 0.50, y: window.innerHeight * 0.50 },
-      { name: 'أعلى اليمين', x: window.innerWidth * 0.85, y: window.innerHeight * 0.20 },
-      { name: 'أسفل اليمين', x: window.innerWidth * 0.85, y: window.innerHeight * 0.80 },
-      { name: 'أعلى اليسار', x: window.innerWidth * 0.15, y: window.innerHeight * 0.20 },
-      { name: 'أسفل اليسار', x: window.innerWidth * 0.15, y: window.innerHeight * 0.80 }
-    ];
-
-    const targetEl = document.getElementById('calib-target');
-    const hintEl = document.getElementById('calib-step-hint');
-    const counterEl = document.getElementById('star-count');
-
-    for (let i = 0; i < points.length; i++) {
-      if (this.stage !== 'calibration') return; // إذا تم التخطي
-
-      const pt = points[i];
-      targetEl.style.left = `${pt.x - 38}px`;
-      targetEl.style.top = `${pt.y - 38}px`;
-      targetEl.classList.add('pulse');
-
-      await new Promise(resolve => {
-        let clicksDone = 0;
-        if (counterEl) counterEl.innerText = `${clicksDone}/3`;
-        if (hintEl) hintEl.innerText = `النقطة ${i + 1} من 5: ${pt.name} (انقر فوق النجمة ⭐ المتبقي: ${3 - clicksDone})`;
-
-        const handleClick = (e) => {
-          e.stopPropagation();
-          clicksDone++;
-          this.playBeep();
-          this.tracker.addCalibrationSample(pt.x, pt.y);
-
-          if (counterEl) counterEl.innerText = `${clicksDone}/3`;
-          if (hintEl) hintEl.innerText = `النقطة ${i + 1} من 5: ${pt.name} (أحسنت! انقر ثانية ⭐ المتبقي: ${3 - clicksDone})`;
-
-          if (clicksDone >= 3) {
-            targetEl.removeEventListener('click', handleClick);
-            resolve();
-          }
-        };
-
-        targetEl.addEventListener('click', handleClick);
-
-
-      });
-
-      targetEl.classList.remove('pulse');
-    }
-
-    if (!this.tracker.computeCalibration()) {
-      this.stage = 'env_check';
-      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم تكتمل المعايرة</h2><p>اضغط النجمة ثلاث مرات عند كل نقطة من النقاط الخمس. لن نعرض مسار نظر وكأنه معاير قبل اكتمال الخطوات.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع معاير</button></div></div>';
-      return;
-    }
-    this.calibrationCompleted = true;
-
-    container.innerHTML = `
-      <div class="assessment-card fade-in text-center">
-        <div class="success-icon" style="font-size: 54px; margin-bottom: 16px;">🎉</div>
-        <h2>رائع جداً! تم تدريب ومعايرة نموذج النظر بنجاح</h2>
-        <p>الآن ستقرأ قصة <strong>"${this.currentText.title}"</strong>.</p>
-        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">
-          اقرأ بعينيك بهدوء وبسرعتك الطبيعية. النقطة الزرقاء ستتحرك مع بؤبؤ عينيك فوق الكلمات.
-        </p>
-        <div class="actions">
-          <button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startReading()">
-            ابدأ قراءة القصة الآن 📖
-          </button>
-        </div>
-      </div>
-    `;
+    if (!container) return;
+    container.innerHTML = '<div class="assessment-card fade-in"><h2>تعذر تحميل وحدة معايرة النظر</h2><p>لم تبدأ معايرة تتبع العين؛ لن نعرض تخمينات للنظر على أنها قراءة فعلية. أعد تحميل الصفحة وحاول مجددًا.</p><div class="actions"><button class="btn btn-primary" onclick="window.location.reload()">إعادة تحميل التطبيق</button><button class="btn btn-outline" onclick="window.assessmentManager.renderEnvironmentCheck()">العودة إلى فحص الكاميرا</button></div></div>';
   }
 
   // المرحلة 3: قراءة النص وتتبع حركة العين
