@@ -126,13 +126,13 @@ test('does not inflate gaze dwell across missing samples or low-duration blips',
 test('accepts calibration only when enough independent validation targets are within internal tolerance', () => {
   const good = assessCalibrationValidation([
     { sampleCount: 12, errorPx: 60 }, { sampleCount: 12, errorPx: 80 },
-    { sampleCount: 12, errorPx: 100 }, { sampleCount: 12, errorPx: 120 },
+    { sampleCount: 12, errorPx: 90 }, { sampleCount: 12, errorPx: 120 },
     { sampleCount: 12, errorPx: 300 }
   ], 1280, 800);
   assert.equal(good.passed, true);
   assert.equal(good.validTargetCount, 5);
   assert.equal(good.tolerancePx, 96);
-  assert.equal(good.medianErrorPx, 100);
+  assert.equal(good.medianErrorPx, 90);
   assert.equal(good.targetsWithinTolerance, 4);
 
   const poor = assessCalibrationValidation([
