@@ -336,7 +336,7 @@
     const container = document.getElementById('assessment-container');
     container.innerHTML = '<div class="assessment-card text-center fade-in"><div class="spinner"></div><h2>جارٍ تجهيز ملخص جلسة القراءة…</h2><p>نجمع أزمنة القراءة وملاحظات المعلم وإجابات الفهم دون إنتاج تشخيص.</p></div>';
     const summary = window.ReadingAssessmentProtocol.summarizeReadingSegments(this.readingSegments.map(segment => ({
-      durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors,
+      durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, mode: segment.mode, errors: segment.errors,
       omissions: segment.omissions, selfCorrections: segment.selfCorrections
     })));
     const allSamples = this.readingSegments.flatMap(segment => segment.gazeSamples || []);
@@ -368,7 +368,7 @@
       secondTextId: this.secondText.id, secondTextTitle: this.secondText.title,
       observedWordCount: summary.wordCount, durationSeconds: summary.durationSeconds,
       totalAssessmentDurationSeconds: Math.round((performance.now() - this.assessmentStartedAt) / 100) / 10,
-      wpm: summary.wpm, comprehensionScore: correct, comprehensionTotal: questionCount,
+      wpm: summary.wpm, comparableReadingMode: summary.comparableMode, comprehensionScore: correct, comprehensionTotal: questionCount,
       firstComprehensionScore: firstCorrect, firstComprehensionTotal: firstAnswers.length,
       secondComprehensionScore: secondCorrect, secondComprehensionTotal: secondAnswers.length,
       ranDurationSeconds: this.ranDurationSeconds, ranErrors: this.ranErrors, readingSegments: readingSegments,
@@ -415,7 +415,7 @@
       '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
       (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
       '<div class="reading-summary-stats"><div><span>المدة</span><strong>' + this.formatProtocolDuration(segment.durationSeconds) +
-      '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء مسجلة</span><strong>' +
+      '</strong></div><div><span>سرعة المقطع</span><strong>' + (window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) === null ? 'غير متاحة' : window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds) + ' ك/د') + '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء مسجلة</span><strong>' +
       segment.errors + '</strong></div><div><span>إشارة النظر</span><strong>' + (segment.hasValidGaze ? 'عينات مبدئية' : 'غير كافية') + '</strong></div></div>' +
       (segment.audioUrl ? '<audio controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">الصوت مؤقت في هذه الجلسة فقط، ولم يُرسل إلى الخادم.</p>' : '') + '</article>'
     ).join('');
@@ -428,7 +428,7 @@
       safe(session.studentName) + ' · الصف ' + safe(session.grade) + ' · مقطعا قراءة</p></div><div class="risk-badge-box"><span class="risk-title">' +
       safe(risk.levelAr || 'ملاحظات وصفية') + '</span><span class="risk-score">لا ينتج النظام درجة خطر تشخيصية</span></div></div>' + saveMessage +
       '<div class="metrics-summary-grid"><div class="metric-box"><div class="title">سرعة القراءة المحسوبة</div><div class="val">' +
-      (session.wpm == null ? 'غير متاحة' : session.wpm + ' <small>كلمة/د</small>') + '</div><div class="sub">عدد الكلمات الفعلي ÷ زمن القراءة</div></div>' +
+      (session.wpm == null ? 'غير متاحة' : session.wpm + ' <small>كلمة/د</small>') + '</div><div class="sub">' + (session.comparableReadingMode ? 'عدد الكلمات ÷ زمن القراءة' : 'لم تُدمج قراءة جهرية مع قراءة صامتة') + '</div></div>' +
       '<div class="metric-box"><div class="title">فهم المقروء</div><div class="val">' + (Number(session.comprehensionScore) || 0) + ' / ' +
       (Number(session.comprehensionTotal) || 0) + '</div><div class="sub">إجابات صحيحة عبر النصين</div></div>' +
       '<div class="metric-box"><div class="title">تسمية الحروف</div><div class="val">' + (session.ranDurationSeconds == null ? 'غير مسجلة' : this.formatProtocolDuration(session.ranDurationSeconds)) +
@@ -440,7 +440,7 @@
       '<div class="view-toggles"><button class="btn btn-sm active" id="btn-show-scanpath" onclick="window.assessmentManager.toggleVisualMode(0)">المسار</button><button class="btn btn-sm" id="btn-show-heatmap" onclick="window.assessmentManager.toggleVisualMode(1)">الخريطة الحرارية</button></div></div>' +
       '<div class="view-toggles" style="margin-bottom:12px">' + visualButtons + '</div><div class="replay-wrapper" id="replay-wrapper"><div class="arabic-text-content" id="replay-text-view"></div><canvas id="analysis-canvas" class="gaze-overlay-canvas"></canvas></div>' +
       '<div class="scanpath-legend"><span>دوائر: مواقع التثبيت المقدّر</span><span>الخطوط: انتقالات بين العينات</span><span>لا تعرض الرسوم صوت الطفل</span></div></section>' +
-      '<section class="diagnostic-reasons-card"><h4>ما الذي سجلته الجلسة؟</h4><ul>' + (risk.reasons || []).map(reason => '<li>' + safe(reason) + '</li>').join('') +
+      '<section class="diagnostic-reasons-card"><h4>ما الذي سجلته الجلسة؟</h4><ul>' + (risk.reasons || []).map(reason => '<li>' + safe(reason) + '</li>').join('') + (session.comparableReadingMode ? '' : '<li>لم نحسب سرعة موحدة للمقطعين لاختلاف طريقة القراءة؛ تظهر سرعة كل مقطع على حدة.</li>') +
       '</ul><ul><li>أخطاء القراءة: ' + (Number(session.teacherMarkedErrors) || 0) + ' · الحذف: ' + (Number(session.omissions) || 0) + ' · التصحيح الذاتي: ' +
       (Number(session.selfCorrections) || 0) + '.</li><li>القراءة باستقلال: ' + (session.readingIndependently === true ? 'نعم' : session.readingIndependently === false ? 'لا' : 'غير محدد') +
       ' · المساعدة: ' + safe(session.assistanceType || 'غير محددة') + '.</li></ul>' + (session.teacherNotes ? '<p><strong>ملاحظة المعلم:</strong> ' + safe(session.teacherNotes) + '</p>' : '') + '</section>' +
