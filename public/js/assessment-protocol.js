@@ -303,7 +303,8 @@
         dominantCount = count;
       }
     });
-    const targetCountSamples = targetIndex != null && Number.isInteger(targetIndex) && targetIndex >= 0 && targetIndex < targetCount
+    const hasTargetWord = targetIndex != null && Number.isInteger(targetIndex) && targetIndex >= 0 && targetIndex < targetCount;
+    const targetCountSamples = hasTargetWord
       ? mapped.filter(function (sample) { return Number(sample.wordIndex) === targetIndex; }).length
       : 0;
     const quality = safeSamples.length >= 3 && mapped.length >= 2 ? 'observed' : 'insufficient';
@@ -312,7 +313,7 @@
       gazeSampleCount: safeSamples.length,
       mappedGazeSampleCount: mapped.length,
       targetWordSampleCount: targetCountSamples,
-      targetWordGazePercent: mapped.length ? Math.round(targetCountSamples / mapped.length * 1000) / 10 : null,
+      targetWordGazePercent: hasTargetWord && mapped.length ? Math.round(targetCountSamples / mapped.length * 1000) / 10 : null,
       dominantGazeWordIndex: dominant,
       dominantGazeWordSharePercent: mapped.length ? Math.round(dominantCount / mapped.length * 1000) / 10 : null
     };
