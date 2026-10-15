@@ -43,7 +43,7 @@ test('refuses timestamp models that do not support the current word timestamp AP
   assert.equal(config.wordTimestampModel, 'gpt-transcribe');
   assert.equal(config.timestampModelSupported, false);
   assert.equal(config.wordTimestampAnalysisEnabled, false);
-  assert.match(config.timestampDisabledReason, /يدعم whisper-1 فقط/);
+  assert.match(config.timestampDisabledReason, /whisper-1 فقط/);
 });
 
 test('accepts a configured speech transcription model without changing timestamp-provider validation', () => {
