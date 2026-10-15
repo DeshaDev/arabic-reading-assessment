@@ -31,6 +31,7 @@ class ParentReportGenerator {
     const qualityLabel = risk.levelAr || 'مؤشرات وصفية — لا تصنيف تشخيصي';
     const reasons = Array.isArray(risk.reasons) ? risk.reasons : [];
     const segments = Array.isArray(s.readingSegments) ? s.readingSegments : [];
+    const readingAnalyses = Array.isArray(s.readingAnalyses) ? s.readingAnalyses : [];
     const reasonsHtml = reasons.length
       ? reasons.map(function (reason) { return '<li>' + safe(reason) + '</li>'; }).join('')
       : '<li>راجع مدة القراءة وإجابات الفهم وجودة الإشارة مع المعلم.</li>';
@@ -69,6 +70,30 @@ class ParentReportGenerator {
     html += '</div></section>';
     if (s.readingIndependently !== undefined || s.assistanceType || s.teacherNotes) {
       html += '<section class="report-section"><h3 class="section-title">سياق المعلم</h3><div class="summary-card"><p>القراءة باستقلال: ' + (s.readingIndependently === true ? 'نعم' : s.readingIndependently === false ? 'لا' : 'غير محدد') + ' · المساعدة: ' + safe(s.assistanceType || 'غير محددة') + '.</p>' + (s.teacherNotes ? '<p>' + safe(s.teacherNotes) + '</p>' : '') + '</div></section>';
+    }
+
+    if (readingAnalyses.length) {
+      html += '<section class="report-section"><h3 class="section-title">تحليل آلي للقراءة الجهرية · يحتاج مراجعة بشرية</h3><p>قورِن تفريغ الكلام الآلي بالنص المستهدف. قد تمثل الفروق أخطاء تعرف صوتي، وليست كل علامة خطأ قراءة مؤكدًا.</p><div class="recommendations-list">';
+      readingAnalyses.forEach(function (analysis, index) {
+        const alignment = analysis.alignment || {};
+        const counts = alignment.counts || {};
+        const transcript = safe(analysis.transcript || '');
+        const rate = alignment.wordErrorRate == null ? 'غير متاحة' : Math.round(alignment.wordErrorRate * 100) + '%';
+        const typeLabels = { substitution: 'استبدال محتمل', deletion: 'حذف محتمل من التفريغ', insertion: 'كلمة إضافية', repetition: 'تكرار محتمل' };
+        const differences = (alignment.operations || []).filter(function (operation) { return operation.type !== 'match'; }).slice(0, 80);
+        const diffHtml = differences.length
+          ? '<ul>' + differences.map(function (operation) {
+            return '<li><strong>' + safe(typeLabels[operation.type] || 'فرق محتمل') + ':</strong> النص ' +
+              safe(operation.targetWord || '—') + ' · التفريغ ' + safe(operation.spokenWord || 'لم يظهر') + '</li>';
+          }).join('') + '</ul>'
+          : '<p>لم يرصد التطابق النصي اختلافًا واضحًا في التفريغ؛ هذا لا يثبت خلو القراءة من الأخطاء.</p>';
+        html += '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(analysis.passageTitle || 'مقطع القراءة') + '</h4><p><strong>التفريغ:</strong> ' + transcript + '</p>' +
+          '<p>استبدال: ' + (Number(counts.substitutions) || 0) + ' · حذف محتمل: ' + (Number(counts.deletions) || 0) +
+          ' · إضافة: ' + (Number(counts.insertions) || 0) + ' · تكرار: ' + (Number(counts.repetitions) || 0) +
+          ' · فرق التفريغ التقريبي: ' + rate + '.</p>' + diffHtml +
+          '<p class="text-muted">محرك التفريغ: ' + safe(analysis.model || 'غير محدد') + ' · ' + safe(analysis.analyzedAt || '') + '</p></div></div>';
+      });
+      html += '</div></section>';
     }
 
     html += '<section class="report-section"><h3 class="section-title">ملاحظات فنية يجب مراجعتها</h3><div class="recommendations-list">';
