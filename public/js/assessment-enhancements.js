@@ -51,15 +51,20 @@
   };
 
   proto.renderGazeTargetText = function (content) {
-    const tokens = String(content || '').match(/\s+|[^\s]+/gu) || [];
+    const source = String(content || '');
+    const wordPattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
+    let html = '';
+    let lastIndex = 0;
     let wordIndex = 0;
-    return tokens.map(token => {
-      if (/[\p{L}\p{N}]/u.test(token)) {
-        const index = wordIndex++;
-        return '<span class="gaze-word-target" data-gaze-word-index="' + index + '">' + this.escapeHtml(token) + '</span>';
-      }
-      return this.escapeHtml(token);
-    }).join('');
+    let match;
+    while ((match = wordPattern.exec(source)) !== null) {
+      html += this.escapeHtml(source.slice(lastIndex, match.index));
+      html += '<span class="gaze-word-target" data-gaze-word-index="' + wordIndex + '">' + this.escapeHtml(match[0]) + '</span>';
+      wordIndex++;
+      lastIndex = wordPattern.lastIndex;
+    }
+    html += this.escapeHtml(source.slice(lastIndex));
+    return html;
   };
 
   proto.numericMedian = function (values) {
