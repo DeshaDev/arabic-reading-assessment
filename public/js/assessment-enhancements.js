@@ -217,6 +217,98 @@
     this.startReading(0, 0);
   };
 
+  proto.renderTrackedArabicText = function (content) {
+    const text = String(content || '');
+    const matcher = /[\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]+/gu;
+    let html = '';
+    let lastIndex = 0;
+    let targetIndex = 0;
+    let match;
+    while ((match = matcher.exec(text)) !== null) {
+      html += this.escapeHtml(text.slice(lastIndex, match.index));
+      html += '<span class="gaze-word" data-reading-word-index="' + targetIndex++ + '">' +
+        this.escapeHtml(match[0]) + '</span>';
+      lastIndex = matcher.lastIndex;
+    }
+    html += this.escapeHtml(text.slice(lastIndex));
+    return html;
+  };
+
+  proto.captureWordBoxes = function () {
+    const wrapper = document.getElementById('reading-wrapper');
+    const textView = document.getElementById('arabic-text-view');
+    if (!wrapper || !textView) return [];
+    const wrapperRect = wrapper.getBoundingClientRect();
+    return Array.from(textView.querySelectorAll('[data-reading-word-index]')).map(span => {
+      const rect = span.getBoundingClientRect();
+      const targetIndex = Number(span.dataset.readingWordIndex);
+      if (!Number.isInteger(targetIndex) || rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        targetIndex: targetIndex,
+        text: span.textContent || '',
+        x: rect.left - wrapperRect.left,
+        y: rect.top - wrapperRect.top,
+        width: rect.width,
+        height: rect.height,
+        centerX: rect.left - wrapperRect.left + rect.width / 2,
+        centerY: rect.top - wrapperRect.top + rect.height / 2
+      };
+    }).filter(Boolean);
+  };
+
+  proto.calculateTimedGazeAlignment = function (segment, timedAlignment) {
+    const operations = timedAlignment && Array.isArray(timedAlignment.operations) ? timedAlignment.operations : [];
+    const samples = Array.isArray(segment && segment.gazeSamples) ? segment.gazeSamples : [];
+    const boxes = new Map((Array.isArray(segment && segment.wordBoxes) ? segment.wordBoxes : [])
+      .map(box => [box.targetIndex, box]));
+    const audioStart = Number(segment && segment.audioStartedAtMs);
+    const calibrationError = Number(this.calibrationMedianErrorPx);
+    if (!segment || !segment.hasValidGaze || !Number.isFinite(audioStart) ||
+        !Number.isFinite(calibrationError) || calibrationError > 160 || samples.length < 10) {
+      return { available: false, reason: 'لا توجد مزامنة صوت/نظر كافية بعد فحص جودة المعايرة.', byTargetIndex: {}, matchedWords: 0 };
+    }
+
+    const byTargetIndex = {};
+    const matched = [];
+    operations.forEach(operation => {
+      if (operation.type !== 'match' || !Number.isInteger(operation.targetIndex) ||
+          !Number.isFinite(operation.spokenStart) || !Number.isFinite(operation.spokenEnd) ||
+          operation.spokenEnd < operation.spokenStart) return;
+      const box = boxes.get(operation.targetIndex);
+      if (!box) return;
+      const start = audioStart + operation.spokenStart * 1000 - 60;
+      const end = audioStart + operation.spokenEnd * 1000 + 60;
+      const wordSamples = samples.filter(sample => Number.isFinite(sample.t) && sample.t >= start && sample.t <= end);
+      if (wordSamples.length < 3) return;
+      const tolerance = 18;
+      const inWord = wordSamples.filter(sample =>
+        sample.x >= box.x - tolerance && sample.x <= box.x + box.width + tolerance &&
+        sample.y >= box.y - tolerance && sample.y <= box.y + box.height + tolerance
+      ).length;
+      const record = {
+        targetIndex: operation.targetIndex,
+        targetWord: operation.targetWord,
+        spokenWord: operation.spokenWord,
+        sampleCount: wordSamples.length,
+        insidePercent: Math.round((inWord / wordSamples.length) * 100),
+        spokenStart: operation.spokenStart,
+        spokenEnd: operation.spokenEnd
+      };
+      byTargetIndex[operation.targetIndex] = record;
+      matched.push(record);
+    });
+    const insideTotal = matched.reduce((sum, item) => sum + item.insidePercent * item.sampleCount, 0);
+    const samplesTotal = matched.reduce((sum, item) => sum + item.sampleCount, 0);
+    return {
+      available: matched.length > 0,
+      reason: matched.length ? null : 'لم تتوفر عينات نظر كافية أثناء الكلمات المطابقة زمنيًا.',
+      matchedWords: matched.length,
+      onWordSamplePercent: samplesTotal ? Math.round(insideTotal / samplesTotal) : null,
+      byTargetIndex: byTargetIndex,
+      note: 'هذا تطابق مكاني/زمني أولي بين تقدير النظر وتوقيت الكلام، ويتأثر بدقة الكاميرا ومحاذاة التوقيت؛ لا يمثل فهمًا أو تشخيصًا.'
+    };
+  };
+
   proto.startReading = function (mode, passageIndex) {
     const index = Number(passageIndex) || 0;
     this.activePassageIndex = index;
@@ -229,7 +321,7 @@
     container.innerHTML = '<div class="reading-stage fade-in"><div class="step-indicator">الخطوة ' + (index === 0 ? '3' : '6') + ' من 7 · ' + wrapperMode +
       '</div><div class="reading-header"><div class="title">' + this.escapeHtml(this.currentText.title) + '</div><span class="badge-info">' + wrapperMode +
       '</span><div class="timer" id="reading-timer-display">00:00</div></div><div class="reading-canvas-wrapper" id="reading-wrapper"><div class="arabic-text-content" id="arabic-text-view">' +
-      this.currentText.content + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
+      this.renderTrackedArabicText(this.currentText.content) + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
       (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in"> تسجيل محلي اختياري للصوت. لن يُرسل للتحليل الآلي إلا بموافقة منفصلة في شاشة النتائج</label></div>' : '') +
       '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء إضافية غير محددة على الكلمات</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">حذف إضافي غير محدد</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية إضافية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
       '<p class="text-muted">المعلم هو من يدوّن هذه الملاحظات؛ لا يستنتجها النظام تلقائيًا.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
@@ -288,6 +380,7 @@
       else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) options.mimeType = 'audio/mp4';
       const recorder = new MediaRecorder(stream, options);
       const captureToken = this.audioSessionToken;
+      const startedAtMs = performance.now();
       const chunks = [];
       recorder.ondataavailable = event => { if (event.data && event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = () => {
@@ -297,7 +390,7 @@
           if (blob.size > 0) {
             const old = this.audioRecords[passageIndex];
             if (old && old.url) URL.revokeObjectURL(old.url);
-            this.audioRecords[passageIndex] = { blob: blob, url: URL.createObjectURL(blob), mimeType: blob.type };
+            this.audioRecords[passageIndex] = { blob: blob, url: URL.createObjectURL(blob), mimeType: blob.type, startedAtMs: startedAtMs };
           }
         }
         chunks.length = 0;
@@ -342,6 +435,7 @@
     const durationSeconds = Math.max(0, Math.round((performance.now() - this.segmentStartedAt) / 10) / 100);
     const index = this.activePassageIndex;
     const audio = await this.stopAudioCapture(index);
+    const wordBoxes = this.captureWordBoxes();
     const numberFrom = id => Math.max(0, Math.min(200, Number(document.getElementById(id)?.value) || 0));
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
@@ -365,6 +459,8 @@
       hasValidGaze: hasValidGaze,
       metrics: gazeMetrics,
       gazeSamples: samples,
+      wordBoxes: wordBoxes,
+      audioStartedAtMs: audio && Number.isFinite(audio.startedAtMs) ? audio.startedAtMs : null,
       viewportWidth: document.getElementById('reading-wrapper')?.clientWidth || window.innerWidth,
       viewportHeight: document.getElementById('reading-wrapper')?.clientHeight || 360,
       audioUrl: audio && audio.url ? audio.url : null
@@ -590,7 +686,8 @@
       passageId: segment.passageId, passageTitle: segment.passageTitle, content: segment.content, mode: segment.mode,
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors, omissions: segment.omissions,
       selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze, metrics: segment.metrics,
-      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, audioUrl: segment.audioUrl, index: index
+      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, audioUrl: segment.audioUrl, index: index,
+      gazeSamples: segment.gazeSamples || [], wordBoxes: segment.wordBoxes || [], audioStartedAtMs: segment.audioStartedAtMs
     }));
     payload.metrics = combinedMetrics;
     payload.riskClassification = risk;
