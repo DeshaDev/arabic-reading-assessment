@@ -323,6 +323,8 @@ function tokenizeAndBoundWords(text, containerWidth, containerHeight, fontSize =
   };
 }
 
+if (typeof window !== 'undefined') window.ARABIC_ALTERNATE_TEXTS = ARABIC_ALTERNATE_TEXTS;
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS, tokenizeAndBoundWords };
 }
