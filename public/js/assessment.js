@@ -32,12 +32,35 @@ class AssessmentSessionManager {
     this.calibrationCompleted = false;
     this.qualityNotice = null;
 
-    // Camera permission is requested only after the user starts a session.
-    if (!this.tracker.isStreaming) {
-      await this.tracker.initialize();
-    }
-
+    // Render the session immediately; a slow camera/model startup must not leave a blank screen.
     this.renderEnvironmentCheck();
+    if (!this.tracker.isStreaming) {
+      const sessionToken = this.audioSessionToken;
+      this.cameraInitializationPromise = Promise.resolve()
+        .then(() => this.tracker.initialize())
+        .then(ready => {
+          if (sessionToken !== this.audioSessionToken || this.stage === 'stopped') {
+            this.tracker.shutdown();
+            return false;
+          }
+          if (!ready && this.tracker.cameraError) {
+            const alertBox = document.getElementById('camera-alert-box');
+            const errMsg = document.getElementById('camera-err-msg');
+            if (alertBox) alertBox.style.display = 'block';
+            if (errMsg) errMsg.textContent = this.tracker.cameraError;
+          }
+          return ready;
+        })
+        .catch(error => {
+          if (sessionToken !== this.audioSessionToken || this.stage === 'stopped') return false;
+          this.tracker.cameraError = error && error.message ? error.message : 'تعذر تشغيل الكاميرا.';
+          const alertBox = document.getElementById('camera-alert-box');
+          const errMsg = document.getElementById('camera-err-msg');
+          if (alertBox) alertBox.style.display = 'block';
+          if (errMsg) errMsg.textContent = this.tracker.cameraError;
+          return false;
+        });
+    }
   }
 
   // المرحلة 1: فحص البيئة والإضاءة
@@ -50,6 +73,7 @@ class AssessmentSessionManager {
         <div class="step-indicator">الخطوة 1 من 4: التحقق من وضعية الجلوس والكاميرا</div>
         <h2>مرحباً يا بطل! لنستعد معاً لمغامرة القراءة</h2>
         <p>انظر إلى نافذة الكاميرا في أسفل يسار الشاشة للتأكد من ظهور وجهك وعينيك بدقة.</p>
+        <p id="camera-startup-status" class="text-muted" role="status" aria-live="polite">يجري تجهيز الكاميرا… اسمح بالوصول إليها من نافذة المتصفح عند الطلب.</p>
 
         <div id="camera-alert-box" style="display: none; margin: 20px 0; padding: 16px 20px; border-radius: 10px; background: #fef2f2; border: 1px solid #f87171; color: #991b1b; text-align: right; line-height: 1.6;">
           <strong>⚠️ الكاميرا غير مفعلة أو محجوبة بالعتاد:</strong>
@@ -100,6 +124,22 @@ class AssessmentSessionManager {
       </div>
     `;
 
+    // Update the visible state when the camera initialization succeeds or fails.
+    this.tracker.onCameraStatusChange = (state) => {
+      const startup = document.getElementById('camera-startup-status');
+      if (startup) {
+        startup.textContent = state.status === 'active'
+          ? 'الكاميرا تعمل الآن. ابدأ المعايرة ثم القراءة.'
+          : 'تعذر تشغيل الكاميرا: ' + (state.message || 'تحقق من الإذن والجهاز.');
+      }
+      if (state.status === 'error') {
+        const alertBox = document.getElementById('camera-alert-box');
+        const errMsg = document.getElementById('camera-err-msg');
+        if (alertBox) alertBox.style.display = 'block';
+        if (errMsg) errMsg.textContent = state.message || 'تعذر تشغيل الكاميرا.';
+      }
+    };
+
     // التحقق الفوري من حالة الكاميرا
     this.checkCameraImmediately();
 
@@ -145,13 +185,17 @@ class AssessmentSessionManager {
       }
     } else {
       setTimeout(() => {
-        if (!this.tracker.isCameraActive()) {
-          if (alertBox) {
-            alertBox.style.display = 'block';
-            if (errMsg) errMsg.innerText = 'نافذة الكاميرا لا تستقبل بث فيديو حالياً. تأكد من إذن المتصفح للكاميرا.';
-          }
+        const active = this.tracker.isCameraActive();
+        const startup = document.getElementById('camera-startup-status');
+        if (active) {
+          if (startup) startup.textContent = 'الكاميرا تعمل الآن. ابدأ المعايرة ثم القراءة.';
+          if (alertBox) alertBox.style.display = 'none';
+        } else {
+          if (alertBox) alertBox.style.display = 'block';
+          if (errMsg) errMsg.innerText = this.tracker.cameraError || 'لم يبدأ بث الكاميرا بعد. اسمح بالوصول إليها، ثم اضغط إعادة فحص الكاميرا.';
+          if (startup) startup.textContent = 'لم يبدأ بث الكاميرا بعد؛ راجع الرسالة الحمراء وأعد المحاولة.';
         }
-      }, 1800);
+      }, 5000);
     }
   }
 
