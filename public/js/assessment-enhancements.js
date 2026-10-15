@@ -975,7 +975,8 @@
         return Number.isFinite(t) && t >= Math.max(0, startMs) && t <= endMs;
       });
       base.gazeSampleCount = inWindow.length;
-      const mapped = inWindow.filter(sample => Number.isInteger(Number(sample.wordIndex)) &&
+      const mapped = inWindow.filter(sample => sample.wordIndex != null &&
+        Number.isInteger(Number(sample.wordIndex)) &&
         Number(sample.wordIndex) >= 0 && Number(sample.wordIndex) < Number(segment.wordCount || 0));
       base.mappedGazeSampleCount = mapped.length;
       const targetIndex = Number(operation.targetIndex);
