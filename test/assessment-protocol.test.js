@@ -5,7 +5,9 @@ const {
   calculateObservedWpm,
   createRapidNamingSequence,
   summarizeReadingSegments,
-  summarizeWordMarks
+  summarizeWordMarks,
+  summarizeWordGaze,
+  assessCalibrationValidation
 } = require('../public/js/assessment-protocol.js');
 const { ARABIC_TEXTS_BANK, ARABIC_ALTERNATE_TEXTS } = require('../public/js/texts.js');
 
@@ -82,4 +84,62 @@ test('summarizes unique teacher word marks without double-counting a word', () =
     hesitation: 0,
     selfCorrection: 1
   });
+});
+
+
+test('summarizes per-word gaze dwell, coverage, and RTL reading-order regressions', () => {
+  const samples = [
+    { t: 0, wordIndex: 0 }, { t: 50, wordIndex: 0 }, { t: 100, wordIndex: 0 },
+    { t: 150, wordIndex: 1 }, { t: 200, wordIndex: 1 }, { t: 250, wordIndex: 1 },
+    { t: 300, wordIndex: 2 }, { t: 350, wordIndex: 2 }, { t: 400, wordIndex: 2 },
+    { t: 450, wordIndex: 1 }, { t: 500, wordIndex: 1 }, { t: 550, wordIndex: 1 }
+  ];
+  const summary = summarizeWordGaze(samples, 6);
+  assert.equal(summary.quality, 'observed');
+  assert.equal(summary.sampleCount, 12);
+  assert.equal(summary.inTextSamples, 12);
+  assert.equal(summary.sampleCoveragePercent, 100);
+  assert.equal(summary.uniqueWordsSeen, 3);
+  assert.equal(summary.wordCoveragePercent, 50);
+  assert.equal(summary.stableWordVisits, 4);
+  assert.equal(summary.regressions, 1);
+  assert.equal(summary.forwardTransitions, 2);
+  assert.equal(summary.totalDwellMs, 400);
+  assert.deepEqual(summary.perWord.map(item => item.wordIndex), [0, 1, 2]);
+  assert.equal(summary.perWord.find(item => item.wordIndex === 1).visitCount, 2);
+});
+
+test('does not inflate gaze dwell across missing samples or low-duration blips', () => {
+  const summary = summarizeWordGaze([
+    { t: 100, wordIndex: 0 }, { t: 130, wordIndex: 0 },
+    { t: 500, wordIndex: 0 }, { t: 530, wordIndex: 0 },
+    { t: 560, wordIndex: null }, { t: 600, wordIndex: 1 }, { t: 630, wordIndex: 1 }
+  ], 4);
+  assert.equal(summary.stableWordVisits, 0);
+  assert.equal(summary.totalDwellMs, 0);
+  assert.equal(summary.quality, 'insufficient');
+});
+
+test('accepts calibration only when enough independent validation targets are within internal tolerance', () => {
+  const good = assessCalibrationValidation([
+    { sampleCount: 12, errorPx: 60 }, { sampleCount: 12, errorPx: 80 },
+    { sampleCount: 12, errorPx: 100 }, { sampleCount: 12, errorPx: 120 },
+    { sampleCount: 12, errorPx: 300 }
+  ], 1280, 800);
+  assert.equal(good.passed, true);
+  assert.equal(good.validTargetCount, 5);
+  assert.equal(good.medianErrorPx, 100);
+  assert.equal(good.targetsWithinTolerance, 4);
+
+  const poor = assessCalibrationValidation([
+    { sampleCount: 12, errorPx: 260 }, { sampleCount: 12, errorPx: 270 },
+    { sampleCount: 12, errorPx: 280 }, { sampleCount: 12, errorPx: 290 },
+    { sampleCount: 12, errorPx: 320 }
+  ], 1280, 800);
+  assert.equal(poor.passed, false);
+  const insufficient = assessCalibrationValidation([
+    { sampleCount: 12, errorPx: 20 }, { sampleCount: 12, errorPx: 40 },
+    { sampleCount: 12, errorPx: 60 }
+  ], 1280, 800);
+  assert.equal(insufficient.passed, false);
 });
