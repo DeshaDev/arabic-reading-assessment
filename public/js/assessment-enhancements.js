@@ -46,8 +46,82 @@
     this.rawGazeSamples = [];
   };
 
+  proto.validateCalibration = async function () {
+    this.stage = 'calibration_validation';
+    const container = document.getElementById('assessment-container');
+    const points = [
+      { name: 'أعلى الوسط', x: 0.50, y: 0.20 },
+      { name: 'وسط اليمين', x: 0.80, y: 0.50 },
+      { name: 'أسفل الوسط', x: 0.50, y: 0.80 },
+      { name: 'وسط اليسار', x: 0.20, y: 0.50 }
+    ].map(point => ({ name: point.name, x: Math.round(window.innerWidth * point.x), y: Math.round(window.innerHeight * point.y) }));
+
+    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع</button><div class="calib-instructions"><h3>اختبار جودة المعايرة</h3><p>انظر إلى كل دائرة دون النقر. يقارن النظام موضع النظر المتوقع بمركز الهدف على نقاط لم تُستخدم في التدريب.</p><p id="calib-step-hint">الاختبار 1 من 4 · انظر إلى الهدف حتى ينتقل تلقائيًا</p></div><div class="calib-target" id="calib-target"><span>●</span></div></div>';
+    const target = document.getElementById('calib-target');
+    const hint = document.getElementById('calib-step-hint');
+    const pointErrors = [];
+    for (let i = 0; i < points.length; i++) {
+      if (this.stage !== 'calibration_validation') return;
+      const point = points[i];
+      target.style.left = (point.x - 38) + 'px';
+      target.style.top = (point.y - 38) + 'px';
+      if (hint) hint.textContent = 'الاختبار ' + (i + 1) + ' من ' + points.length + ' · ' + point.name + ' · ثبّت نظرك';
+      const startedAt = performance.now();
+      const samples = await new Promise(resolve => {
+        const collected = [];
+        let lastGazeTime = -1;
+        const timer = setInterval(() => {
+          const now = performance.now();
+          const gaze = this.tracker.currentGaze;
+          // Ignore initial settling time and count each real WebGazer update once.
+          if (now - startedAt >= 180 && gaze && Number.isFinite(gaze.t) &&
+              gaze.t > startedAt + 180 && gaze.t > lastGazeTime &&
+              Number.isFinite(gaze.x) && Number.isFinite(gaze.y)) {
+            collected.push({ x: gaze.x, y: gaze.y });
+            lastGazeTime = gaze.t;
+          }
+          if (now - startedAt >= 1050) {
+            clearInterval(timer);
+            resolve(collected);
+          }
+        }, 50);
+      });
+      if (samples.length >= 5) {
+        const sortedX = samples.map(item => item.x).sort((a, b) => a - b);
+        const sortedY = samples.map(item => item.y).sort((a, b) => a - b);
+        const medianX = sortedX[Math.floor(sortedX.length / 2)];
+        const medianY = sortedY[Math.floor(sortedY.length / 2)];
+        pointErrors.push(Math.hypot(medianX - point.x, medianY - point.y));
+      }
+    }
+
+    const sortedErrors = pointErrors.slice().sort((a, b) => a - b);
+    const medianErrorPx = sortedErrors.length
+      ? Math.round(sortedErrors[Math.floor(sortedErrors.length / 2)])
+      : null;
+    this.calibrationMedianErrorPx = medianErrorPx;
+    this.calibrationValidationPointCount = pointErrors.length;
+    // Engineering quality gate only; these pixel thresholds are not clinical norms.
+    const passed = pointErrors.length >= 3 && medianErrorPx !== null && medianErrorPx <= 160;
+    this.calibrationCompleted = passed;
+    this.stage = passed ? 'calibration_complete' : 'calibration_failed';
+    if (passed) {
+      container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت المعايرة فحص الجودة التقني</h2><p>الانحراف الوسيط على أهداف الاختبار: <strong>' + medianErrorPx + ' بكسل</strong> · نقاط مقاسة: ' + pointErrors.length + ' من 4.</p><p class="text-muted">هذا اختبار جودة داخل الجلسة على جهازك، وليس قياس دقة معتمدًا أو معيارًا لتشخيص صعوبات القراءة.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startRapidNaming()">الانتقال إلى تسمية الحروف</button></div></div>';
+      const indicator = document.getElementById('ind-calibration');
+      if (indicator) indicator.innerHTML = '<span class="dot"></span>المعايرة: اجتازت فحص الجودة التقني';
+    } else {
+      container.innerHTML = '<div class="assessment-card fade-in text-center"><h2>إشارة النظر غير كافية للاعتماد عليها</h2><p>لم يجتز تقدير النظر فحص الجودة الداخلي. ' +
+        (medianErrorPx === null ? 'لم تُلتقط عينات كافية من نقاط الاختبار.' : 'الانحراف الوسيط: ' + medianErrorPx + ' بكسل.') +
+        '</p><p class="text-muted">يمكنك إعادة المعايرة أو متابعة التقييم دون مؤشرات العين. لا تُعرض مسارات النظر باعتبارها موثوقة عند فشل هذا الفحص التقني.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع العين</button></div></div>';
+      const indicator = document.getElementById('ind-calibration');
+      if (indicator) indicator.innerHTML = '<span class="dot"></span>المعايرة: إشارة غير كافية';
+    }
+  };
+
   proto.skipCalibration = function () {
     this.calibrationCompleted = false;
+    this.calibrationMedianErrorPx = null;
+    this.calibrationValidationPointCount = 0;
     this.startRapidNaming();
   };
 
@@ -106,10 +180,7 @@
       container.innerHTML = '<div class="assessment-card"><h2>لم تكتمل خطوات المعايرة</h2><p>أعد المحاولة أو تابع المهام دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المحاولة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع</button></div></div>';
       return;
     }
-    this.calibrationCompleted = true;
-    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اكتملت خطوات المعايرة</h2><p>تم تسجيل نقاط المعايرة؛ سيظل تقدير النظر تجريبيًا ويعتمد على الجهاز والبيئة.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startRapidNaming()">الانتقال إلى تسمية الحروف</button></div></div>';
-    const indicator = document.getElementById('ind-calibration');
-    if (indicator) indicator.innerHTML = '<span class="dot"></span>المعايرة: سُجلت النقاط';
+    await this.validateCalibration();
   };
 
   proto.startRapidNaming = function () {
@@ -274,7 +345,8 @@
     const numberFrom = id => Math.max(0, Math.min(200, Number(document.getElementById(id)?.value) || 0));
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
-    const hasValidGaze = !!(this.calibrationCompleted && this.tracker.isStreaming && durationSeconds >= 10 &&
+    const hasValidGaze = !!(this.calibrationCompleted && Number.isFinite(this.calibrationMedianErrorPx) &&
+      this.calibrationMedianErrorPx <= 160 && this.tracker.isStreaming && durationSeconds >= 10 &&
       samples.length >= 15 && gazeMetrics.totalFixations >= 2 && gazeMetrics.avgFixationDurationMs > 0);
     this.readingSegments[index] = {
       passageId: this.currentText.id,
