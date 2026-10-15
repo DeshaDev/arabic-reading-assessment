@@ -34,5 +34,9 @@ jobs:
           node --check public/js/tracker.js
           node --check lib/reading-alignment.js
           node --check lib/transcription-config.js
+          node --check lib/transcription-benchmark.js
+          node --check scripts/evaluate-transcription-benchmark.js
+          node --check test/transcription-benchmark.test.js
+          node --check test/transcription-benchmark-cli.test.js
           node --check test/server.integration.test.js
           node --check test/transcription-config.test.js
