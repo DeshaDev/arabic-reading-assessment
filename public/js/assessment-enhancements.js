@@ -189,14 +189,32 @@
       target.style.left = (point.x - 38) + 'px';
       target.style.top = (point.y - 38) + 'px';
       target.classList.add('pulse');
-      await new Promise(resolve => {
+      const pointCompleted = await new Promise(resolve => {
         let clicks = 0;
         let pending = false;
+        let settled = false;
+        let cancelInterval = null;
+        const cleanup = () => {
+          target.removeEventListener('click', handler);
+          if (cancelInterval) clearInterval(cancelInterval);
+          cancelInterval = null;
+        };
+        const finish = completed => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          resolve(completed);
+        };
         const handler = async event => {
           event.stopPropagation();
-          if (pending || this.stage !== 'calibration') return;
+          if (pending || settled || this.stage !== 'calibration') return;
           pending = true;
           const success = await this.tracker.addCalibrationSample(point.x, point.y);
+          if (this.stage !== 'calibration') {
+            pending = false;
+            finish(false);
+            return;
+          }
           if (success) {
             clicks++;
             if (counter) counter.textContent = clicks + '/3';
@@ -205,13 +223,14 @@
             hint.textContent = 'لم تُسجّل العينة؛ أعد النقر بعد التأكد من تشغيل الكاميرا.';
           }
           pending = false;
-          if (clicks >= 3) {
-            target.removeEventListener('click', handler);
-            resolve();
-          }
+          if (clicks >= 3) finish(true);
         };
         target.addEventListener('click', handler);
+        cancelInterval = setInterval(() => {
+          if (this.stage !== 'calibration') finish(false);
+        }, 100);
       });
+      if (!pointCompleted || this.stage !== 'calibration') return;
       target.classList.remove('pulse');
     }
     if (this.stage !== 'calibration') return;
@@ -343,6 +362,7 @@
 
   proto.beginReadingSegment = async function () {
     if (this.segmentActive) return;
+    const sessionToken = this.audioSessionToken;
     const startButton = document.getElementById('reading-start-btn');
     const finishButton = document.getElementById('reading-finish-btn');
     const audioCheckbox = document.getElementById('record-audio-opt-in');
@@ -351,8 +371,21 @@
       const status = document.getElementById('audio-recording-status');
       if (status) status.textContent = 'بانتظار إذن الميكروفون…';
       const started = await this.startAudioCapture(this.activePassageIndex);
+      if (sessionToken !== this.audioSessionToken || this.stage === 'stopped' ||
+          !document.getElementById('reading-finish-btn')) {
+        if (this.activeRecorder && this.activeRecorder.state === 'recording') {
+          try { this.activeRecorder.stop(); } catch (_) {}
+        }
+        if (this.activeAudioStream) {
+          this.activeAudioStream.getTracks().forEach(track => track.stop());
+          this.activeAudioStream = null;
+        }
+        return;
+      }
       if (status) status.textContent = started ? 'التسجيل جارٍ محليًا على هذا الجهاز.' : 'تعذر تشغيل التسجيل؛ يمكن متابعة القراءة دون تسجيل صوت.';
     }
+    if (sessionToken !== this.audioSessionToken || this.stage === 'stopped' ||
+        !document.getElementById('reading-finish-btn')) return;
     this.segmentActive = true;
     this.stage = 'reading';
     this.segmentStartedAt = performance.now();
@@ -367,17 +400,23 @@
   };
 
   proto.startAudioCapture = async function (passageIndex) {
+    const captureToken = this.audioSessionToken;
+    if (this.discardAudioOnStop || this.stage === 'stopped') return false;
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
       this.audioCaptureErrors[passageIndex] = 'التسجيل غير مدعوم في هذا المتصفح.';
       return false;
     }
+    let stream = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (captureToken !== this.audioSessionToken || this.discardAudioOnStop || this.stage === 'stopped') {
+        stream.getTracks().forEach(track => track.stop());
+        return false;
+      }
       const options = {};
       if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) options.mimeType = 'audio/webm;codecs=opus';
       else if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/mp4')) options.mimeType = 'audio/mp4';
       const recorder = new MediaRecorder(stream, options);
-      const captureToken = this.audioSessionToken;
       const chunks = [];
       recorder.ondataavailable = event => { if (event.data && event.data.size > 0) chunks.push(event.data); };
       recorder.onstop = () => {
@@ -405,6 +444,9 @@
       recorder.start(250);
       return true;
     } catch (error) {
+      if (stream && typeof stream.getTracks === 'function') {
+        stream.getTracks().forEach(track => track.stop());
+      }
       this.audioCaptureErrors[passageIndex] = error && error.name === 'NotAllowedError' ? 'لم يُمنح إذن الميكروفون.' : 'تعذر تشغيل الميكروفون.';
       return false;
     }
