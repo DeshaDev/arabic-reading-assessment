@@ -163,12 +163,12 @@ class EyeMetricsEngine {
   /**
    * فحص جودة الجلسة وإنشاء ملخص وصفي؛ لا يُنتج تشخيصًا أو درجة خطر.
    */
-  classifyRisk(grade, durationSeconds, wordsCount, metrics, comprehensionScore, comprehensionTotal) {
+  classifyRisk(grade, durationSeconds, wordsCount, metrics, comprehensionScore, comprehensionTotal, comparableReadingMode = true) {
     const duration = Number(durationSeconds);
     const wordCount = Number(wordsCount);
     const validDuration = Number.isFinite(duration) && duration >= 0;
     const validWords = Number.isFinite(wordCount) && wordCount > 0;
-    const rawWpm = validDuration && duration >= 15 && validWords
+    const rawWpm = comparableReadingMode && validDuration && duration >= 15 && validWords
       ? Math.round((wordCount / duration) * 60)
       : null;
     const paceLooksPlausible = rawWpm !== null && rawWpm > 0 && rawWpm <= 240;
@@ -184,6 +184,9 @@ class EyeMetricsEngine {
     }
     if (!validWords) {
       reasons.push('لم نتمكن من حساب عدد كلمات صالح من النص المعروض.');
+    }
+    if (!comparableReadingMode) {
+      reasons.push('لم نحسب سرعة موحدة لأن مقطعي القراءة استخدما طريقتين مختلفتين (جهرية وصامتة).');
     }
     if (rawWpm !== null && rawWpm > 240) {
       reasons.push('السرعة المحسوبة أعلى من نطاق فحص الجودة التقني؛ تحقق من مدة الجلسة وعدد الكلمات قبل تفسيرها.');
