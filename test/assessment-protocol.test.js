@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  tokenizeArabicWords,
   countArabicWords,
   calculateObservedWpm,
   createRapidNamingSequence,
@@ -228,4 +229,14 @@ test('refuses invalid speech windows and does not calculate gaze correlations ou
   assert.equal(summary.quality, 'insufficient');
   assert.equal(summary.gazeSampleCount, 0);
   assert.equal(summary.mappedGazeSampleCount, 0);
+});
+
+
+test('uses one Arabic token index across diacritics, punctuation, spaces, and line breaks', () => {
+  const source = 'بِسْمِ اللَّهِ،\\n  ١٢٣! a-b';
+  const tokens = tokenizeArabicWords(source);
+  assert.deepEqual(tokens.map(token => token.word), ['بِسْمِ', 'اللَّهِ', '١٢٣', 'a', 'b']);
+  assert.deepEqual(tokens.map(token => token.index), [0, 1, 2, 3, 4]);
+  assert.ok(tokens.every(token => source.slice(token.start, token.end) === token.word));
+  assert.equal(countArabicWords(source), tokens.length);
 });
