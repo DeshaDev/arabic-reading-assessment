@@ -696,13 +696,31 @@
           ? '<div class="asr-consent-panel"><span class="badge-info">تحليل الصوت غير متاح في Pages</span><p class="text-muted">يمكنك تجربة التقييم وحفظ تقريره على هذا المتصفح. تفريغ الصوت الآلي يتطلب تشغيل الخادم مع إعداد مفتاح API؛ لن يُرسل هذا التسجيل من صفحة Pages.</p></div>'
           : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
         : '';
+      const wordGaze = segment.wordGaze || {};
+      const indexedWords = String(segment.content || '').match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || [];
+      const topDwell = (Array.isArray(wordGaze.perWord) ? wordGaze.perWord : [])
+        .slice()
+        .sort((a, b) => Number(b.totalDwellMs || 0) - Number(a.totalDwellMs || 0))
+        .slice(0, 4)
+        .map(item => '<li><span>' + safe(indexedWords[Number(item.wordIndex)] || ('كلمة ' + (Number(item.wordIndex) + 1))) +
+          '</span><strong>' + Math.round(Number(item.totalDwellMs) || 0) + ' ms</strong><small>' + (Number(item.visitCount) || 0) + ' مرات</small></li>')
+        .join('');
+      const wordGazeMarkup = wordGaze.quality === 'observed'
+        ? '<div class="word-gaze-summary"><div class="word-gaze-metrics"><div><span>كلمات ظهرت عندها إشارة مستقرة</span><strong>' +
+          (Number(wordGaze.uniqueWordsSeen) || 0) + ' / ' + (Number(wordGaze.targetWordCount) || 0) + '</strong></div><div><span>تغطية الكلمات</span><strong>' +
+          (Number(wordGaze.wordCoveragePercent) || 0) + '%</strong></div><div><span>عينات أُسندت إلى كلمة</span><strong>' +
+          (Number(wordGaze.sampleCoveragePercent) || 0) + '%</strong></div><div><span>انتقالات بصرية إلى كلمة سابقة</span><strong>' +
+          (Number(wordGaze.regressions) || 0) + '</strong></div></div>' +
+          (topDwell ? '<div class="word-gaze-top"><strong>أطول أزمنة نظر مرصودة (ليست أخطاء بحد ذاتها)</strong><ul>' + topDwell + '</ul></div>' : '') +
+          '<p class="text-muted">هذه مؤشرات من إحداثيات النظر المقدّرة ومواقع الكلمات على الشاشة. لا تثبت أن الطفل قرأ الكلمة أو فهمها، ولا تُستخدم كدرجة تشخيصية.</p></div>'
+        : '<div class="word-gaze-summary word-gaze-unavailable"><strong>لا توجد تغطية كافية لربط النظر بالكلمات.</strong><p class="text-muted">يتطلب ذلك اجتياز التحقق التقني للمعايرة والتقاط عينات كافية فوق مناطق الكلمات.</p></div>';
       return '<article class="reading-summary-card"><div class="reading-summary-top"><span class="badge-info">' +
         (segment.mode === 'oral' ? 'قراءة جهرية' : 'قراءة صامتة') + '</span><strong>' + safe(segment.passageTitle) + '</strong></div>' +
         '<div class="reading-summary-stats"><div><span>المدة</span><strong>' + this.formatProtocolDuration(segment.durationSeconds) +
         '</strong></div><div><span>سرعة المقطع</span><strong>' + (speed === null ? 'غير متاحة' : speed + ' ك/د') +
         '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء المعلم</span><strong>' +
         segment.errors + '</strong></div><div><span>إشارة النظر</span><strong>' + (segment.hasValidGaze ? 'عينات مبدئية' : 'غير كافية') +
-        '</strong></div></div>' + audio + analysisControls + '</article>';
+        '</strong></div></div>' + wordGazeMarkup + audio + analysisControls + '</article>';
     }).join('');
     const visualButtons = segments.map((segment, index) => '<button class="btn btn-sm ' + (index === 0 ? 'active' : '') +
       '" id="visual-segment-' + index + '" onclick="window.assessmentManager.selectVisualSegment(' + index + ')">' + (index + 1) + '. ' + safe(segment.passageTitle) + '</button>').join('');
@@ -710,7 +728,15 @@
       ? '<div class="diagnostic-alert-banner" style="background:#fff7e7;border:1px solid #efdbad;color:#795a28">تم حفظ هذه الجلسة التجريبية في تخزين هذا المتصفح فقط؛ لن تظهر على جهاز آخر. لا تُدخل بيانات أطفال حقيقيين. لا يُرسل التسجيل الصوتي ولا تُحفظ ملفاته في وضع Pages.</div>'
       : session.saveError
         ? '<div class="diagnostic-alert-banner" style="background:#fff7e7;border:1px solid #efdbad;color:#795a28"><strong>لم تُحفظ الجلسة على الخادم.</strong> ' + safe(session.saveError) + ' احتفظ بهذا الملخص قبل مغادرة الصفحة.</div>'
-        : '<div class="diagnostic-alert-banner" style="background:#eaf7f0;border:1px solid #c7e7d7;color:#2d6c56">تم حفظ ملخص الجلسة. لا تُحفظ إحداثيات النظر الخام أو ملفات الصوت.</div>';
+        : '<div class="diagnostic-alert-banner" style="background:#eaf7f0;border:1px solid #c7e7d7;color:#2d6c56">تم حفظ ملخص الجلسة. لا تُحفظ إحداثيات النظر الخام أو ملفات الصوت؛ قد يُحفظ ملخص مجمّع لمناطق الكلمات المرصودة.</div>';
+    const calibration = session.gazeCalibration || null;
+    const calibrationSummaryMarkup = calibration
+      ? '<div class="gaze-calibration-summary ' + (calibration.passed ? 'is-passed' : 'is-failed') + '"><strong>' +
+        (calibration.passed ? 'المعايرة والتحقق التقني الأولي: اجتازا الفحص' : 'المعايرة: لم تجتز التحقق التقني الأولي') +
+        '</strong><span>الخطأ الوسيط المقدر: ' + (calibration.medianErrorPx == null ? 'غير متاح' : safe(calibration.medianErrorPx) + ' بكسل') +
+        ' · نقاط صالحة: ' + safe(calibration.validTargetCount || 0) + '/' + safe(calibration.validationTargetCount || 5) +
+        ' · الحد الداخلي التجريبي: ' + safe(calibration.tolerancePx || '—') + ' بكسل.</span><small>هذا فحص جودة هندسي غير معتمد علميًا وليس مقياسًا تشخيصيًا.</small></div>'
+      : '<div class="gaze-calibration-summary is-failed"><strong>لم تُسجل معايرة مستقلة بجودة قابلة للتقييم.</strong><span>لن يُفسر مسار النظر باعتباره مؤشرًا موثوقًا على القراءة.</span></div>';
     container.innerHTML = '<div class="results-dashboard fade-in"><div class="results-header"><div><div class="eyebrow">اكتملت مهام الجلسة</div><h2>ملخص القراءة العربية</h2><p>' +
       safe(session.studentName) + ' · الصف ' + safe(session.grade) + ' · مقطعا قراءة</p></div><div class="risk-badge-box"><span class="risk-title">' +
       safe(risk.levelAr || 'ملاحظات وصفية') + '</span><span class="risk-score">لا ينتج النظام درجة خطر تشخيصية</span></div></div>' + saveMessage +
@@ -722,7 +748,7 @@
       '</div><div class="sub">' + (Number(session.ranErrors) || 0) + ' أخطاء رصدها المعلم</div></div>' +
       '<div class="metric-box"><div class="title">بيانات النظر</div><div class="val">' + (session.hasValidGaze ? (metrics.totalFixations || 0) + ' <small>تثبيت</small>' : 'غير كافية') +
       '</div><div class="sub">مؤشر تجريبي لا معيار تشخيصي</div></div></div>' +
-      '<section class="dashboard-section"><div class="section-head"><div><h2>مقطعا القراءة</h2><p>الأزمنة والملاحظات المسجلة خلال الجلسة</p></div></div><div class="reading-summary-grid">' + segmentCards + '</div></section>' +
+      calibrationSummaryMarkup + '<section class="dashboard-section"><div class="section-head"><div><h2>مقطعا القراءة</h2><p>الأزمنة والملاحظات المسجلة خلال الجلسة</p></div></div><div class="reading-summary-grid">' + segmentCards + '</div></section>' +
       '<section class="scanpath-section"><div class="section-toolbar"><div><h3>مسار النظر لكل مقطع</h3><p class="text-muted">المسارات وصفية وتتأثر بالمعايرة والجهاز؛ لا تُفسَّر بمعزل عن بقية التقييم.</p></div>' +
       '<div class="view-toggles"><button class="btn btn-sm active" id="btn-show-scanpath" onclick="window.assessmentManager.toggleVisualMode(0)">المسار</button><button class="btn btn-sm" id="btn-show-heatmap" onclick="window.assessmentManager.toggleVisualMode(1)">الخريطة الحرارية</button></div></div>' +
       '<div class="view-toggles" style="margin-bottom:12px">' + visualButtons + '</div><div class="replay-wrapper" id="replay-wrapper"><div class="arabic-text-content" id="replay-text-view"></div><canvas id="analysis-canvas" class="gaze-overlay-canvas"></canvas></div>' +
