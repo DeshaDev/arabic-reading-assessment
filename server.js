@@ -193,6 +193,7 @@ app.post('/api/sessions', (req, res) => {
         if (!Number.isInteger(wordIndex) || wordIndex < 0 || wordIndex >= wordCount || items.some(entry => entry.wordIndex === wordIndex)) return items;
         items.push({
           wordIndex,
+          wordText: typeof item.wordText === 'string' ? item.wordText.slice(0, 60) : '',
           totalDwellMs: clampInt(item.totalDwellMs, 300000),
           visitCount: clampInt(item.visitCount, 1000),
           longestDwellMs: clampInt(item.longestDwellMs, 300000)
