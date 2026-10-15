@@ -136,8 +136,8 @@ class EyeMetricsEngine {
     const startT = points[0].t;
     const endT = points[points.length - 1].t;
     const measuredDuration = endT - startT;
-    const estimatedDuration = points.length * 33.3; // تقدير الإطارات بمعدل 30 إطار/ث
-    const durationMs = Math.max(measuredDuration, estimatedDuration);
+    // Use observed timestamps only. A fixed frame-rate estimate would inflate short fixations.
+    const durationMs = Math.max(0, measuredDuration);
 
     const avgX = points.reduce((acc, p) => acc + p.x, 0) / points.length;
     const avgY = points.reduce((acc, p) => acc + p.y, 0) / points.length;
