@@ -496,6 +496,9 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
   const transcript = typeof body.transcript === 'string' ? body.transcript.trim() : '';
   const referenceText = typeof body.referenceText === 'string' ? body.referenceText.trim() : '';
   const model = typeof body.model === 'string' ? body.model.slice(0, 100) : 'unknown';
+  const rawWordTimestamps = Array.isArray(body.wordTimestamps) ? body.wordTimestamps.slice(0, 1000) : [];
+  const rawTimestampAlignment = body.timestampAlignment && typeof body.timestampAlignment === 'object' ? body.timestampAlignment : {};
+  const rawSpeechGazeContext = Array.isArray(body.speechGazeContext) ? body.speechGazeContext.slice(0, 80) : [];
 
   if (![0, 1].includes(passageIndex) || !passageId) {
     return res.status(400).json({ error: 'بيانات المقطع غير صالحة.' });
@@ -518,6 +521,75 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
   } catch (error) {
     return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ.' });
   }
+  const safeWordTimestamps = rawWordTimestamps.reduce((items, item) => {
+    const transcriptIndex = Number(item && item.transcriptIndex);
+    const word = typeof (item && item.word) === 'string' ? item.word.slice(0, 60) : '';
+    const startSeconds = Number(item && item.startSeconds);
+    const endSeconds = Number(item && item.endSeconds);
+    if (!Number.isInteger(transcriptIndex) || transcriptIndex < 0 || transcriptIndex >= alignment.transcriptWordCount ||
+        items.some(existing => existing.transcriptIndex === transcriptIndex) ||
+        !word || !Number.isFinite(startSeconds) || !Number.isFinite(endSeconds) ||
+        startSeconds < 0 || endSeconds <= startSeconds || endSeconds > 3600 ||
+        item.timingQuality !== 'cross-model-agreement') return items;
+    items.push({
+      transcriptIndex,
+      word,
+      startSeconds: Math.round(startSeconds * 1000) / 1000,
+      endSeconds: Math.round(endSeconds * 1000) / 1000,
+      timingQuality: 'cross-model-agreement'
+    });
+    return items;
+  }, []).sort((a, b) => a.transcriptIndex - b.transcriptIndex);
+  const timestampModel = typeof rawTimestampAlignment.model === 'string'
+    ? rawTimestampAlignment.model.slice(0, 100) : 'whisper-1';
+  const safeTimestampAlignment = {
+    enabled: rawTimestampAlignment.enabled === true,
+    model: timestampModel,
+    quality: safeWordTimestamps.length ? 'partial' : 'unavailable',
+    transcriptWordCount: alignment.transcriptWordCount,
+    timestampWordCount: clampInt(rawTimestampAlignment.timestampWordCount, 1500),
+    matchedWordCount: safeWordTimestamps.length,
+    coveragePercent: alignment.transcriptWordCount
+      ? Math.round(safeWordTimestamps.length / alignment.transcriptWordCount * 1000) / 10 : 0,
+    note: safeWordTimestamps.length
+      ? 'التوقيتات محفوظة فقط للكلمات التي اتفق عليها تفريغ الكلام وتمرير التوقيت المستقل.'
+      : 'لم تتوفر توقيتات كلمات موثوقة بما يكفي بعد مقارنة المحركين.'
+  };
+  const safeSpeechGazeContext = rawSpeechGazeContext.reduce((items, item) => {
+    const targetIndex = Number(item && item.targetIndex);
+    const transcriptIndex = Number(item && item.transcriptIndex);
+    const type = ['substitution', 'deletion', 'insertion', 'repetition'].includes(item && item.type) ? item.type : null;
+    const audioStartSeconds = Number(item && item.audioStartSeconds);
+    const audioEndSeconds = Number(item && item.audioEndSeconds);
+    const gazeSampleCount = clampInt(item && item.gazeSampleCount, 20000);
+    const mappedGazeSampleCount = Math.min(gazeSampleCount, clampInt(item && item.mappedGazeSampleCount, 20000));
+    const targetWordSampleCount = Math.min(mappedGazeSampleCount, clampInt(item && item.targetWordSampleCount, 20000));
+    if (!type || !Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= alignment.referenceWordCount ||
+        !Number.isInteger(transcriptIndex) || transcriptIndex < 0 || transcriptIndex >= alignment.transcriptWordCount ||
+        items.some(existing => existing.targetIndex === targetIndex && existing.transcriptIndex === transcriptIndex) ||
+        item.timingAvailable !== true || !Number.isFinite(audioStartSeconds) || !Number.isFinite(audioEndSeconds) ||
+        audioStartSeconds < 0 || audioEndSeconds <= audioStartSeconds || audioEndSeconds > 3600) return items;
+    const quality = gazeSampleCount >= 3 && mappedGazeSampleCount >= 2 ? 'observed' : 'insufficient';
+    items.push({
+      type,
+      targetIndex,
+      transcriptIndex,
+      timingAvailable: true,
+      quality,
+      audioStartSeconds: Math.round(audioStartSeconds * 1000) / 1000,
+      audioEndSeconds: Math.round(audioEndSeconds * 1000) / 1000,
+      gazeSampleCount,
+      mappedGazeSampleCount,
+      targetWordSampleCount,
+      targetWordGazePercent: mappedGazeSampleCount
+        ? Math.round(targetWordSampleCount / mappedGazeSampleCount * 1000) / 10 : null,
+      dominantGazeWordIndex: item.dominantGazeWordIndex == null ? null : clampInt(item.dominantGazeWordIndex, 2000),
+      dominantGazeWordSharePercent: item.dominantGazeWordSharePercent == null ? null
+        : Math.max(0, Math.min(100, Number(item.dominantGazeWordSharePercent) || 0))
+    });
+    return items;
+  }, []);
+
   const readingAnalysis = {
     passageIndex: passageIndex,
     passageId: passageId,
@@ -526,7 +598,10 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
     model: model,
     analyzedAt: new Date().toISOString(),
     alignment: alignment,
-    note: 'مقارنة أولية بين التفريغ الآلي والنص المرجعي؛ قد تمثل بعض الفروق أخطاء تعرف صوتي ولا تُعد أخطاء قراءة مؤكدة.'
+    wordTimestamps: safeWordTimestamps,
+    timestampAlignment: safeTimestampAlignment,
+    speechGazeContext: safeSpeechGazeContext,
+    note: 'مقارنة أولية بين التفريغ الآلي والنص المرجعي؛ قد تمثل بعض الفروق أخطاء تعرف صوتي ولا تُعد أخطاء قراءة مؤكدة. سياق النظر والصوت وصفي ولا يثبت سبب الخطأ.'
   };
   if (!Array.isArray(session.readingAnalyses)) session.readingAnalyses = [];
   session.readingAnalyses = session.readingAnalyses.filter(item => item.passageId !== passageId);
