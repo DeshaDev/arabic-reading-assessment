@@ -130,6 +130,7 @@ test('accepts calibration only when enough independent validation targets are wi
   ], 1280, 800);
   assert.equal(good.passed, true);
   assert.equal(good.validTargetCount, 5);
+  assert.equal(good.tolerancePx, 96);
   assert.equal(good.medianErrorPx, 100);
   assert.equal(good.targetsWithinTolerance, 4);
 
