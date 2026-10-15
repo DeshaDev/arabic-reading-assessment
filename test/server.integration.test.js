@@ -156,9 +156,20 @@ test('session API saves sanitized gaze and acoustic summaries without raw sample
     assert.equal(uncalibrated.body.readingSegments[0].hasValidGaze, false);
     assert.equal(uncalibrated.body.readingSegments[0].wordGaze.quality, 'insufficient');
 
+    const inconsistentCalibration = structuredClone(payload);
+    inconsistentCalibration.textId = 'text-d';
+    inconsistentCalibration.textTitle = 'معايرة خارج الحد';
+    inconsistentCalibration.gazeCalibration.medianErrorPx = 250;
+    inconsistentCalibration.readingSegments[0].passageId = 'text-d';
+    const rejectedCalibration = await requestJson('/api/sessions', 'POST', inconsistentCalibration);
+    assert.equal(rejectedCalibration.status, 201, JSON.stringify(rejectedCalibration.body));
+    assert.equal(rejectedCalibration.body.gazeCalibration.passed, false);
+    assert.equal(rejectedCalibration.body.hasValidGaze, false);
+    assert.equal(rejectedCalibration.body.readingSegments[0].wordGaze.quality, 'insufficient');
+
     const persisted = await requestJson('/api/sessions', 'GET');
     assert.equal(persisted.status, 200);
-    assert.equal(persisted.body.length, 2);
+    assert.equal(persisted.body.length, 3);
     const persistedOriginal = persisted.body.find(session => session.id === saved.body.id);
     assert.ok(persistedOriginal);
     assert.equal(persistedOriginal.readingSegments[0].wordGaze.perWord[0].wordText, 'المدرسة');
