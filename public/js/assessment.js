@@ -204,6 +204,11 @@ class AssessmentSessionManager {
 
   // المرحلة 2: المعايرة التفاعلية (5 نقاط)
   async startCalibration() {
+    if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
+      const container = document.getElementById('assessment-container');
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص إذن الكاميرا أولًا، أو تابع الجلسة دون استخدام مؤشرات النظر. لن نعرض المعايرة على أنها مكتملة قبل تسجيل عيناتها.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع النظر</button></div></div>';
+      return;
+    }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
 
@@ -431,7 +436,7 @@ class AssessmentSessionManager {
     container.innerHTML = `
       <div class="assessment-card text-center fade-in">
         <div class="spinner"></div>
-        <h2>جاري استخراج مؤشرات حركة العين وتوليد التقرير المبدئي...</h2>
+        <h2>جاري تجهيز ملخص الجلسة...</h2>
         <p>مراجعة جودة الإشارة وإجابات الفهم. لا يُعد هذا التقييم تشخيصًا لعسر القراءة.</p>
       </div>
     `;
@@ -479,7 +484,6 @@ class AssessmentSessionManager {
       metrics: metrics,
       hasValidGaze: hasValidGaze,
       riskClassification: risk,
-      gazeData: metrics.fixations
     };
 
     // حفظ الجلسة محلياً في الخادم
@@ -491,7 +495,14 @@ class AssessmentSessionManager {
       });
       if (!response.ok) throw new Error('تعذر حفظ الجلسة (' + response.status + ')');
       const savedSession = await response.json();
+      // Raw fixation coordinates stay in browser memory only; the API stores summaries.
+      const observedMetrics = sessionPayload.metrics;
+      const observedRisk = sessionPayload.riskClassification;
       Object.assign(sessionPayload, savedSession);
+      sessionPayload.metrics = observedMetrics;
+      sessionPayload.riskClassification = observedRisk;
+      sessionPayload.hasValidGaze = savedSession.hasValidGaze === true;
+      sessionPayload.riskClassification.hasValidGaze = sessionPayload.hasValidGaze;
       await window.dashboardModule.loadData();
     } catch (err) {
       console.warn('Session sync warning:', err);
@@ -534,8 +545,8 @@ class AssessmentSessionManager {
         <!-- بطاقات المؤشرات الأساسية الحقيقية -->
         <div class="metrics-summary-grid">
           <div class="metric-box">
-            <div class="title">سرعة القراءة الفعلية</div>
-            <div class="val">${session.wpm} <small>كلمة/د</small></div>
+            <div class="title">سرعة القراءة المحسوبة</div>
+            <div class="val">${session.wpm == null ? "غير متاحة" : session.wpm} <small>كلمة/د</small></div>
             <div class="sub">سرعة محسوبة من النص والمدة</div>
           </div>
           <div class="metric-box">
@@ -587,7 +598,7 @@ class AssessmentSessionManager {
         <!-- الإجراءات اللاحقة -->
         <div class="results-actions">
           <button class="btn btn-primary" onclick="window.assessmentManager.openParentReport()">📄 عرض وتصدير تقرير ولي الأمر (PDF)</button>
-          <button class="btn btn-secondary" onclick="window.dashboardModule.openInterventionForStudent('${r.level === 'high' ? 'dots' : 'saccades'}')">🎯 بدء تمارين التدخل المقترحة</button>
+          <button class="btn btn-secondary" onclick="window.dashboardModule.openInterventionForStudent('saccades')">🎯 بدء تمارين التدخل المقترحة</button>
           <button class="btn btn-outline" onclick="window.appRouter.navigate('dashboard')">العودة للوحة التحكم</button>
         </div>
       </div>
