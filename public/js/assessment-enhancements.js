@@ -28,6 +28,10 @@
     this.secondText = (window.ARABIC_ALTERNATE_TEXTS || []).find(item => item.grade === text.grade) || text;
     this.secondReadingMode = secondReadingMode || (Number(student.grade) <= 2 ? 'oral' : 'silent');
     this.readingSegments = [];
+    this.calibrationCompleted = false;
+    this.calibrationValidation = null;
+    this.calibrationMeasurements = [];
+    this.gazeWordBoxes = [];
     this.selectedTeacherMarkType = 'substitution';
     this.comprehensionAnswers = { 0: [], 1: [] };
     this.currentSegmentSamples = [];
@@ -46,6 +50,110 @@
     this.rawGazeSamples = [];
   };
 
+  proto.renderGazeTargetText = function (content) {
+    const tokens = String(content || '').match(/\s+|[^\s]+/gu) || [];
+    let wordIndex = 0;
+    return tokens.map(token => {
+      if (/[\p{L}\p{N}]/u.test(token)) {
+        const index = wordIndex++;
+        return '<span class="gaze-word-target" data-gaze-word-index="' + index + '">' + this.escapeHtml(token) + '</span>';
+      }
+      return this.escapeHtml(token);
+    }).join('');
+  };
+
+  proto.numericMedian = function (values) {
+    const sorted = values.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    if (!sorted.length) return null;
+    const middle = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+  };
+
+  proto.validateCalibration = async function () {
+    const target = document.getElementById('calib-target');
+    const hint = document.getElementById('calib-step-hint');
+    const counter = document.getElementById('star-count');
+    if (!target || !this.tracker || !this.tracker.isStreaming) return false;
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    // These validation locations are deliberately different from the five training points.
+    const points = [
+      { name: 'وسط أعلى الشاشة', x: 0.50, y: 0.36 },
+      { name: 'منتصف اليمين', x: 0.72, y: 0.50 },
+      { name: 'وسط أسفل الشاشة', x: 0.50, y: 0.64 },
+      { name: 'منتصف اليسار', x: 0.28, y: 0.50 },
+      { name: 'المنتصف', x: 0.50, y: 0.50 }
+    ].map(point => ({
+      name: point.name,
+      x: Math.round(width * point.x),
+      y: Math.round(height * point.y)
+    }));
+    const measurements = [];
+
+    for (let i = 0; i < points.length; i++) {
+      if (this.stage !== 'calibration') return false;
+      const point = points[i];
+      target.style.left = (point.x - 38) + 'px';
+      target.style.top = (point.y - 38) + 'px';
+      target.classList.add('pulse');
+      if (counter) counter.textContent = 'تحقق ' + (i + 1) + '/' + points.length;
+      if (hint) hint.textContent = 'تحقق مستقل ' + (i + 1) + ' من ' + points.length + ' · ' + point.name + ' · تابع النقطة بعينيك فقط ولا تنقرها';
+
+      await new Promise(resolve => setTimeout(resolve, 220));
+      if (this.stage !== 'calibration') return false;
+
+      const observed = await new Promise(resolve => {
+        const samples = [];
+        let lastSampleTime = null;
+        let finished = false;
+        let interval = null;
+        let timeout = null;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          if (interval) clearInterval(interval);
+          if (timeout) clearTimeout(timeout);
+          resolve(samples);
+        };
+        interval = setInterval(() => {
+          if (this.stage !== 'calibration') {
+            finish();
+            return;
+          }
+          const gaze = this.tracker.currentGaze;
+          const now = performance.now();
+          if (!gaze || !Number.isFinite(Number(gaze.x)) || !Number.isFinite(Number(gaze.y)) ||
+              !Number.isFinite(Number(gaze.t)) || now - Number(gaze.t) > 250 ||
+              gaze.t === lastSampleTime) return;
+          lastSampleTime = gaze.t;
+          samples.push({ x: Number(gaze.x), y: Number(gaze.y) });
+        }, 60);
+        timeout = setTimeout(finish, 1000);
+      });
+      if (this.stage !== 'calibration') return false;
+
+      const medianX = this.numericMedian(observed.map(sample => sample.x));
+      const medianY = this.numericMedian(observed.map(sample => sample.y));
+      const errorPx = medianX === null || medianY === null
+        ? null
+        : Math.round(Math.sqrt(Math.pow(medianX - point.x, 2) + Math.pow(medianY - point.y, 2)));
+      measurements.push({ name: point.name, sampleCount: observed.length, errorPx: errorPx });
+      if (hint) hint.textContent = 'تحقق مستقل ' + (i + 1) + ' من ' + points.length + ' · سُجّلت ' + observed.length + ' عينة نظر';
+      await new Promise(resolve => setTimeout(resolve, 120));
+    }
+
+    target.classList.remove('pulse');
+    if (this.stage !== 'calibration') return false;
+    this.calibrationMeasurements = measurements.map(item => ({
+      name: item.name,
+      sampleCount: item.sampleCount,
+      errorPx: item.errorPx
+    }));
+    this.calibrationValidation = window.ReadingAssessmentProtocol.assessCalibrationValidation(measurements, width, height);
+    return this.calibrationValidation.passed === true;
+  };
+
   proto.skipCalibration = function () {
     this.calibrationCompleted = false;
     this.startRapidNaming();
@@ -59,7 +167,7 @@
     }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
-    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">المتابعة دون معايرة</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة ثم انقر عليها ثلاث مرات. اكتمال الخطوات لا يعني أن دقة النظر قد تم التحقق منها علميًا.</p><p id="calib-step-hint">النقطة 1 من 5 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
+    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">المتابعة دون معايرة</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة وانقر ثلاث مرات في كل نقطة لتدريب المتتبع، ثم اتبع نقاط تحقق مستقلة بعينيك دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 5 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
     this.tracker.resetCalibration();
     const points = [
       { name: 'المركز', x: 0.50, y: 0.50 }, { name: 'أعلى اليمين', x: 0.84, y: 0.22 },
@@ -106,10 +214,22 @@
       container.innerHTML = '<div class="assessment-card"><h2>لم تكتمل خطوات المعايرة</h2><p>أعد المحاولة أو تابع المهام دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المحاولة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع</button></div></div>';
       return;
     }
-    this.calibrationCompleted = true;
-    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اكتملت خطوات المعايرة</h2><p>تم تسجيل نقاط المعايرة؛ سيظل تقدير النظر تجريبيًا ويعتمد على الجهاز والبيئة.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startRapidNaming()">الانتقال إلى تسمية الحروف</button></div></div>';
+    if (hint) hint.textContent = 'تم تسجيل نقاط التدريب. يبدأ الآن فحص مستقل لجودة تقدير النظر؛ اتبع النجمة بعينيك دون النقر.';
+    if (counter) counter.textContent = 'فحص النظر';
+    const validationPassed = await this.validateCalibration();
+    if (this.stage !== 'calibration') return;
+    this.calibrationCompleted = validationPassed;
+    if (!validationPassed) {
+      const validation = this.calibrationValidation || {};
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم تجتز إشارة النظر التحقق التقني الأولي</h2><p>رغم تسجيل نقرات المعايرة، لم تكن مطابقة اتجاه النظر لنقاط التحقق كافية. لذلك لن نعرض تحليلات النظر على مستوى الكلمات باعتبارها موثوقة في هذه الجلسة.</p><div class="diagnostic-alert-banner"><strong>نتيجة التحقق:</strong> عينات صالحة في ' + (validation.validTargetCount || 0) + ' من ' + (validation.validationTargetCount || 5) + ' نقاط · الخطأ الوسيط المقدر: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + ' · حد تقني داخلي تجريبي: ' + (validation.tolerancePx || '—') + ' بكسل.</div><p class="text-muted">هذا الحد فحص جودة هندسي داخلي غير معتمد علميًا؛ فشل الفحص لا يعني وجود مشكلة لدى الطفل.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون مؤشرات النظر</button></div></div>';
+      const failedIndicator = document.getElementById('ind-calibration');
+      if (failedIndicator) failedIndicator.innerHTML = '<span class="dot"></span>إشارة النظر: غير كافية';
+      return;
+    }
+    const validation = this.calibrationValidation || {};
+    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت إشارة النظر التحقق التقني الأولي</h2><p>الخطأ الوسيط المقدر في نقاط التحقق المستقلة: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + '. سيجري الآن ربط عينات النظر بالكلمات الظاهرة أثناء القراءة.</p><p class="text-muted">هذا فحص جودة داخلي وليس قياس دقة معتمدًا؛ تظل البيانات وصفية وتتأثر بالكاميرا والإضاءة وحركة الرأس.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startRapidNaming()">الانتقال إلى تسمية الحروف</button></div></div>';
     const indicator = document.getElementById('ind-calibration');
-    if (indicator) indicator.innerHTML = '<span class="dot"></span>المعايرة: سُجلت النقاط';
+    if (indicator) indicator.innerHTML = '<span class="dot"></span>إشارة النظر: اجتازت تحققًا تقنيًا أوليًا';
   };
 
   proto.startRapidNaming = function () {
@@ -158,7 +278,7 @@
     container.innerHTML = '<div class="reading-stage fade-in"><div class="step-indicator">الخطوة ' + (index === 0 ? '3' : '6') + ' من 7 · ' + wrapperMode +
       '</div><div class="reading-header"><div class="title">' + this.escapeHtml(this.currentText.title) + '</div><span class="badge-info">' + wrapperMode +
       '</span><div class="timer" id="reading-timer-display">00:00</div></div><div class="reading-canvas-wrapper" id="reading-wrapper"><div class="arabic-text-content" id="arabic-text-view">' +
-      this.currentText.content + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
+      this.renderGazeTargetText(this.currentText.content) + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
       (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in"> تسجيل محلي اختياري للصوت. لن يُرسل للتحليل الآلي إلا بموافقة منفصلة في شاشة النتائج</label></div>' : '') +
       '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء إضافية غير محددة على الكلمات</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">حذف إضافي غير محدد</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية إضافية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
       '<p class="text-muted">المعلم هو من يدوّن هذه الملاحظات؛ لا يستنتجها النظام تلقائيًا.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
@@ -167,13 +287,41 @@
     this.visualizer.canvas = canvas;
     this.visualizer.ctx = canvas.getContext('2d');
     this.visualizer.resize(wrapper.clientWidth, wrapper.clientHeight);
+    this.gazeWordBoxes = Array.from(wrapper.querySelectorAll('[data-gaze-word-index]')).map(element => ({
+      wordIndex: Number(element.dataset.gazeWordIndex),
+      element: element,
+      rect: element.getBoundingClientRect()
+    }));
     this.tracker.onGazePoint = gaze => {
       if (!this.segmentActive || this.stage !== 'reading') return;
       const rect = wrapper.getBoundingClientRect();
       const x = Math.max(4, Math.min(wrapper.clientWidth - 4, gaze.x - rect.left));
       const y = Math.max(4, Math.min(wrapper.clientHeight - 4, gaze.y - rect.top));
+      let wordIndex = null;
+      if (this.calibrationCompleted && gaze.x >= rect.left && gaze.x <= rect.right && gaze.y >= rect.top && gaze.y <= rect.bottom) {
+        const hit = document.elementFromPoint(gaze.x, gaze.y);
+        const directWord = hit && hit.closest ? hit.closest('[data-gaze-word-index]') : null;
+        if (directWord && wrapper.contains(directWord)) {
+          wordIndex = Number(directWord.dataset.gazeWordIndex);
+        } else {
+          // Allow a small tolerance for webcam prediction noise; never assign a distant word.
+          let closest = null;
+          let closestDistance = Infinity;
+          for (const item of this.gazeWordBoxes) {
+            const box = item.rect;
+            const dx = gaze.x < box.left ? box.left - gaze.x : gaze.x > box.right ? gaze.x - box.right : 0;
+            const dy = gaze.y < box.top ? box.top - gaze.y : gaze.y > box.bottom ? gaze.y - box.bottom : 0;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closest = item;
+            }
+          }
+          if (closest && closestDistance <= 32) wordIndex = closest.wordIndex;
+        }
+      }
       if (this.currentSegmentSamples.length < 20000) {
-        this.currentSegmentSamples.push({ t: performance.now(), x: x, y: y });
+        this.currentSegmentSamples.push({ t: Number(gaze.t) || performance.now(), x: x, y: y, wordIndex: wordIndex });
         this.visualizer.drawLiveGaze(x, y);
       }
     };
@@ -274,6 +422,8 @@
     const numberFrom = id => Math.max(0, Math.min(200, Number(document.getElementById(id)?.value) || 0));
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
+    const wordCount = window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content);
+    const wordGaze = window.ReadingAssessmentProtocol.summarizeWordGaze(samples, wordCount);
     const hasValidGaze = !!(this.calibrationCompleted && this.tracker.isStreaming && durationSeconds >= 10 &&
       samples.length >= 15 && gazeMetrics.totalFixations >= 2 && gazeMetrics.avgFixationDurationMs > 0);
     this.readingSegments[index] = {
@@ -282,7 +432,8 @@
       content: this.currentText.content,
       mode: this.currentReadingMode,
       durationSeconds: durationSeconds,
-      wordCount: window.ReadingAssessmentProtocol.countArabicWords(this.currentText.content),
+      wordCount: wordCount,
+      wordGaze: wordGaze,
       baselineErrors: numberFrom('segment-errors'),
       baselineOmissions: numberFrom('segment-omissions'),
       baselineSelfCorrections: numberFrom('segment-corrections'),
@@ -498,6 +649,7 @@
       teacherMarkedErrors: summary.teacherMarkedErrors, omissions: summary.omissions, selfCorrections: summary.selfCorrections,
       readingIndependently: this.readingIndependently, assistanceType: this.assistanceType, teacherNotes: this.teacherNotes,
       audioRecorded: Object.values(this.audioRecords).some(record => record && record.url),
+      gazeCalibration: this.calibrationValidation || null,
       metrics: combinedMetrics, hasValidGaze: hasValidGaze, riskClassification: risk
     };
     let saveError = null;
@@ -518,7 +670,7 @@
       passageId: segment.passageId, passageTitle: segment.passageTitle, content: segment.content, mode: segment.mode,
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors, omissions: segment.omissions,
       selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze, metrics: segment.metrics,
-      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, audioUrl: segment.audioUrl, index: index
+      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, wordGaze: segment.wordGaze, audioUrl: segment.audioUrl, index: index
     }));
     payload.metrics = combinedMetrics;
     payload.riskClassification = risk;
