@@ -703,3 +703,56 @@ a { color: inherit; }
   .progress-panel { padding: 12px; }
   .progress-chart { padding: 10px; }
 }
+
+/* Teacher word-level reading observations */
+.teacher-mark-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 18px 0 10px;
+}
+.teacher-mark-toolbar > span { color: var(--muted); font-size: 11px; font-weight: 700; margin-left: 3px; }
+.mark-type { background: #f3f6f4; border-color: #e0e8e3; color: var(--ink-soft); }
+.mark-type.active { color: #fff; background: var(--nav); border-color: var(--nav); }
+.word-mark-legend { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 15px; }
+.mark-key { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 7px; font-size: 9px; border: 1px solid transparent; }
+.mark-key.mark-substitution, .markable-word.mark-substitution { background: #fbe8e7; border-color: #e7aaaa; color: #a44349; }
+.mark-key.mark-omission, .markable-word.mark-omission { background: #fff0d8; border-color: #eac98c; color: #85591f; }
+.mark-key.mark-hesitation, .markable-word.mark-hesitation { background: #e8f0fa; border-color: #b1c8e8; color: #3f6796; }
+.mark-key.mark-selfCorrection, .markable-word.mark-selfCorrection { background: #e2f5e9; border-color: #a6d7b7; color: #2b7a55; }
+.teacher-mark-text {
+  padding: 20px;
+  margin: 10px 0 14px;
+  border: 1px solid #eee9dc;
+  border-radius: 13px;
+  background: #fffefa;
+  font-size: clamp(20px, 2vw, 27px);
+  line-height: 2.5;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.markable-word {
+  position: relative;
+  display: inline;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  margin: 0 1px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+}
+.markable-word:hover, .markable-word:focus-visible { background: #e8f4ee; border-color: #9bcebb; outline: none; }
+.markable-word.marked { border-bottom-width: 3px; border-style: solid; }
+.teacher-mark-summary {
+  padding: 11px 14px;
+  border: 1px solid #e5ece7;
+  border-radius: 9px;
+  background: #f6faf7;
+  color: #54736a;
+  font-size: 11px;
+  line-height: 1.8;
+}
