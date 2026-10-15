@@ -1,6 +1,6 @@
 /**
  * مدير جلسة التقييم الكاملة:
- * فحص البيئة -> المعايرة الخماسية -> قراءة النص وتتبع النظر -> أسئلة الفهم -> النتائج والتحليلات
+ * فحص البيئة -> معايرة النظر والتحقق منها -> قراءة النص وتتبع النظر -> أسئلة الفهم -> النتائج والتحليلات
  * متكامل مع ودجت الكاميرا المستمر و Google MediaPipe Face Mesh & Iris
  */
 
@@ -105,17 +105,14 @@ class AssessmentSessionManager {
           <h4>🔍 تعليمات المعايرة الحقيقية:</h4>
           <ul>
             <li>تأكد من إعطاء إذن الكاميرا عند طلبه في المتصفح لرصد حركة العين بدقة.</li>
-            <li>في شاشة المعايرة، ستظهر نجمة؛ انقر عليها 3 مرات وأنت تنظر إليها بعينيك لتدريب نموذج الذكاء الاصطناعي.</li>
-            <li>يمكنك النقر على "تخطي المعايرة" للبدء في القراءة مباشرة إن رغبت.</li>
+            <li>ستظهر تسع نقاط معايرة. انظر مباشرة إلى كل نجمة وانقرها ثلاث مرات لتدريب النموذج عبر مناطق الشاشة.</li>
+            <li>يتحقق النظام بعد ذلك من تقدير النظر على نقاط مستقلة. لا يبدأ تتبع الكلمات إلا إذا اجتاز هذا الفحص.</li>
           </ul>
         </div>
 
         <div class="actions" style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
           <button class="btn btn-primary btn-lg" id="btn-start-calib" onclick="window.assessmentManager.startCalibration()">
-            الانتقال للعبة المعايرة الخماسية ⭐
-          </button>
-          <button class="btn btn-outline btn-lg" onclick="window.assessmentManager.skipCalibration()">
-            تخطي المعايرة والبدء في القراءة فوراً ⏭️
+            بدء معايرة النظر (9 نقاط) ⭐
           </button>
           <button class="btn btn-sm btn-secondary" onclick="window.assessmentManager.retryCamera()">
             📸 اختبار الكاميرا مباشرة
@@ -222,10 +219,10 @@ class AssessmentSessionManager {
     if (retryBtn) retryBtn.innerText = '🔄 فحص وإعادة تفعيل الكاميرا الآن';
   }
 
-  // تخطي المعايرة والانتقال للنص مباشرة
+  // Never treat skipped calibration as valid word-level gaze tracking.
   skipCalibration() {
     this.calibrationCompleted = false;
-    this.startReading();
+    this.renderEnvironmentCheck();
   }
 
   playBeep() {
