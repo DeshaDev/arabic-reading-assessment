@@ -37,6 +37,10 @@
     this.assessmentStartedAt = performance.now();
     this.lastSession = null;
     await originalStartSession.call(this, student, text);
+    this.comprehensionAnswers = { 0: [], 1: [] };
+    this.readingSegments = [];
+    this.currentSegmentSamples = [];
+    this.rawGazeSamples = [];
   };
 
   proto.skipCalibration = function () {
