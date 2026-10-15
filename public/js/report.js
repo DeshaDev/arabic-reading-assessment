@@ -88,7 +88,23 @@ class ParentReportGenerator {
             (Number(wordGaze.sampleCoveragePercent) || 0) + '% · انتقالات إلى كلمات سابقة ' + (Number(wordGaze.regressions) || 0) + '.</p>' +
             topWordDwellsHtml + '<p class="text-muted">زمن النظر والمناطق المرصودة لا يثبتان وحدهما حدوث خطأ قراءة أو فهم.</p>'
           : '<p>لا توجد تغطية كافية لربط النظر بالكلمات في هذا المقطع.</p>';
-        return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · سرعة المقطع: ' + (segmentWpm == null ? 'غير متاحة' : segmentWpm + ' كلمة/دقيقة') + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'اجتازت المعايرة تحققًا تقنيًا أوليًا مع عينات مبدئية' : 'غير متاحة أو غير كافية') + '.</p>' + wordGazeHtml + '</div></div>';
+        const acoustic = segment.acousticAnalysis || {};
+        const formatAudioTime = function (seconds) {
+          const value = Math.max(0, Number(seconds) || 0);
+          return Math.floor(value / 60) + ':' + (value % 60).toFixed(2).padStart(5, '0');
+        };
+        const pauseRows = (Array.isArray(acoustic.pauses) ? acoustic.pauses : [])
+          .slice().sort(function (a, b) { return Number(b.durationMs || 0) - Number(a.durationMs || 0); }).slice(0, 5);
+        const acousticHtml = acoustic.quality === 'observed'
+          ? '<p><strong>فترات انخفاض الطاقة الصوتية:</strong> ' + (Number(acoustic.pauseCount) || 0) + ' · فترات طويلة: ' +
+            (Number(acoustic.longPauseCount) || 0) + ' · أطول فترة: ' + ((Number(acoustic.longestPauseMs) || 0) / 1000).toFixed(2) +
+            ' ثانية.</p>' + (pauseRows.length ? '<ul>' + pauseRows.map(function (pause) {
+              return '<li>' + formatAudioTime(pause.startSeconds) + '–' + formatAudioTime(pause.endSeconds) +
+                ' · ' + ((Number(pause.durationMs) || 0) / 1000).toFixed(2) + ' ثانية انخفاض طاقة.</li>';
+            }).join('') + '</ul>' : '') +
+            '<p class="text-muted">فترات انخفاض الطاقة ليست ترددًا أو خطأ قراءة مؤكدًا. التسجيل نفسه لا يُحفظ في قاعدة بيانات الجلسة.</p>'
+          : '<p>لم تتوفر بيانات طاقة صوتية محلية قابلة للتفسير لهذا المقطع.</p>';
+        return '<div class="rec-card"><div class="rec-num">' + (index + 1) + '</div><div><h4>' + safe(segment.passageTitle || 'مقطع قراءة') + ' · ' + mode + '</h4><p>المدة: ' + (Number(segment.durationSeconds) || 0) + ' ثانية · الكلمات: ' + (Number(segment.wordCount) || 0) + ' · سرعة المقطع: ' + (segmentWpm == null ? 'غير متاحة' : segmentWpm + ' كلمة/دقيقة') + ' · أخطاء رصدها المعلم: ' + (Number(segment.errors) || 0) + ' · كلمات محذوفة: ' + (Number(segment.omissions) || 0) + ' · تصحيحات ذاتية: ' + (Number(segment.selfCorrections) || 0) + '.</p><p>مؤشرات النظر: ' + (segment.hasValidGaze ? 'اجتازت المعايرة تحققًا تقنيًا أوليًا مع عينات مبدئية' : 'غير متاحة أو غير كافية') + '.</p>' + wordGazeHtml + acousticHtml + '</div></div>';
       }).join('');
     } else {
       html += '<p class="text-muted">هذه جلسة قديمة لا تتضمن تفاصيل المقاطع.</p>';
