@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { alignReadingTranscript, alignTimedWordsToTranscript } = require('./lib/reading-alignment');
+const { getTranscriptionConfig } = require('./lib/transcription-config');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -52,12 +53,15 @@ app.get('/api/health', (req, res) => {
     service: 'Nebras Arabic Reading Assessment Prototype',
     version: '1.3.0',
     mode: 'prototype',
-    automaticSpeechAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY),
+    automaticSpeechAnalysisEnabled: getTranscriptionConfig().apiKeyAvailable,
     wordLevelGazeSummaryEnabled: true,
     independentCalibrationValidationEnabled: true,
-    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
-    wordTimestampAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY) && process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
-    wordTimestampModel: process.env.OPENAI_WORD_TIMESTAMP_MODEL || 'whisper-1',
+    transcriptionModel: getTranscriptionConfig().transcriptionModel,
+    wordTimestampAnalysisEnabled: getTranscriptionConfig().wordTimestampAnalysisEnabled,
+    wordTimestampModel: getTranscriptionConfig().wordTimestampModel,
+    wordTimestampModelIsLegacy: getTranscriptionConfig().wordTimestampModelIsLegacy,
+    wordTimestampModelRemovalDate: getTranscriptionConfig().wordTimestampModelRemovalDate,
+    wordTimestampDisabledReason: getTranscriptionConfig().timestampDisabledReason,
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -386,7 +390,8 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
     'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/flac': 'flac',
     'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a'
   };
-  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe';
+  const transcriptionConfig = getTranscriptionConfig();
+  const model = transcriptionConfig.transcriptionModel;
 
   try {
     const form = new FormData();
@@ -422,8 +427,8 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
 
     let wordTimestamps = [];
     let timestampAlignment = {
-      enabled: process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
-      model: process.env.OPENAI_WORD_TIMESTAMP_MODEL || 'whisper-1',
+      enabled: transcriptionConfig.wordTimestampAnalysisEnabled,
+      model: transcriptionConfig.wordTimestampModel,
       quality: 'unavailable',
       transcriptWordCount: (transcript.match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || []).length,
       timestampWordCount: 0,
@@ -468,7 +473,7 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
         timestampAlignment.note = 'تعذر إكمال تمرير التوقيت؛ بقي التفريغ الأساسي متاحًا دون توقيت كلمات.';
       }
     } else {
-      timestampAlignment.note = 'تم تعطيل تمرير توقيت الكلمات عبر OPENAI_ENABLE_WORD_TIMESTAMPS=false.';
+      timestampAlignment.note = transcriptionConfig.timestampDisabledReason || 'لم يُفعّل تمرير توقيت الكلمات بسبب إعدادات مزوّد الخدمة.';
     }
 
     return res.json({
