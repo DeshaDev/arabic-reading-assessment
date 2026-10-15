@@ -61,7 +61,7 @@ class AssessmentSessionManager {
           </ol>
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
             <button class="btn btn-sm btn-primary" id="btn-retry-camera" onclick="window.assessmentManager.retryCamera()">🔄 فحص وتفعيل الكاميرا هنا</button>
-            <a href="/camera_test.html" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none; color:#1e293b; border-color:#cbd5e1; background:#fff;">🛠️ فتح صفحة فحص الكاميرا والعتاد مباشرة ↗️</a>
+            <a href="camera_test.html" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none; color:#1e293b; border-color:#cbd5e1; background:#fff;">🛠️ فتح صفحة فحص الكاميرا والعتاد مباشرة ↗️</a>
           </div>
         </div>
 
@@ -534,7 +534,7 @@ class AssessmentSessionManager {
             <strong>⚠️ إشعار الشفافية والأمانة العلمية:</strong><br/>
             لم تسجل الكاميرا إشارات كافية لتتبع حركة العين أثناء هذه القراءة (إذن الكاميرا غير مفعل أو غطاء الكاميرا مقفل أو الكاميرا مستخدمة بتطبيق آخر).<br/>
             للحفاظ على الدقة والمصداقية، <strong>لم يتم رسم أي مسار اصطناعي أو توليد أرقام وهمية</strong>. تم احتساب سرعة القراءة المحسوبة (سرعة القراءة المحسوبة: ${session.wpm == null ? 'غير متاحة' : session.wpm + ' ك/د'}) ودرجة الفهم (${session.comprehensionScore} من ${session.comprehensionTotal})، بينما تظل مؤشرات التثبيت والارتداد والمسار البصري بانتظار اتصال كاميرا فعال.<br/>
-            <a href="/camera_test.html" target="_blank" class="btn btn-sm btn-primary" style="display:inline-block; margin-top:10px; text-decoration:none; padding:8px 16px;">📸 افتح صفحة فحص الكاميرا للتأكد من فتح غطاء العدسة والعتاد ↗️</a>
+            <a href="camera_test.html" target="_blank" class="btn btn-sm btn-primary" style="display:inline-block; margin-top:10px; text-decoration:none; padding:8px 16px;">📸 افتح صفحة فحص الكاميرا للتأكد من فتح غطاء العدسة والعتاد ↗️</a>
           </div>
         ` : `
           <div class="diagnostic-alert-banner" style="background:#ecfdf5; border:1px solid #10b981; padding:12px 18px; border-radius:10px; margin-bottom:20px; color:#065f46; font-size:14px;">
