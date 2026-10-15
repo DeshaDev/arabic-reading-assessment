@@ -1,151 +1,67 @@
 /**
- * مولد تقرير ولي الأمر العربي المبسط والمتوافق مع الطباعة و PDF
- * صمم بلغة مطمئنة وخالية من الوصم مع إرشادات وتمارين منزلية عملية.
+ * Parent-facing session summary. Results are descriptive educational observations, not a diagnosis.
  */
-
 class ParentReportGenerator {
+  static escape(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+    });
+  }
+
   static generateReportHtml(sessionData) {
-    const s = sessionData;
+    const s = sessionData || {};
     const m = s.metrics || {};
     const risk = s.riskClassification || {};
+    const gazeAvailable = s.hasValidGaze === true || risk.hasValidGaze === true;
+    const wpm = Number.isFinite(Number(s.wpm)) && s.wpm !== null ? Number(s.wpm) : null;
+    const score = Number(s.comprehensionScore) || 0;
+    const total = Number(s.comprehensionTotal) || 0;
+    const date = s.date && !Number.isNaN(new Date(s.date).getTime())
+      ? new Intl.DateTimeFormat('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(s.date))
+      : 'غير متاح';
+    const safe = ParentReportGenerator.escape;
+    const gazeSummary = gazeAvailable
+      ? 'تم تسجيل عينات نظر بعد محاولة المعايرة. تعتمد دقتها على الجهاز والإضاءة وطريقة الاستخدام.'
+      : 'لم تتوفر عينات نظر كافية أو لم تكتمل المعايرة؛ لذلك لم تُدرج مؤشرات التثبيت والارتداد في هذا الملخص.';
+    const speedSummary = wpm === null
+      ? 'غير متاحة — مدة القراءة أو جودة القياس لا تسمح بحساب سرعة قابلة للتفسير.'
+      : wpm + ' كلمة/دقيقة';
+    const qualityLabel = risk.levelAr || 'مؤشرات وصفية — لا تصنيف تشخيصي';
+    const reasons = Array.isArray(risk.reasons) ? risk.reasons : [];
+    const reasonsHtml = reasons.length
+      ? reasons.map(function (reason) { return '<li>' + safe(reason) + '</li>'; }).join('')
+      : '<li>راجع مدة القراءة وإجابات الفهم وجودة الإشارة مع المعلم.</li>';
 
-    let statusBadgeClass = 'badge-low';
-    let statusText = 'قراءة طبيعية سلسة ومبشرة';
-    let summaryMessage = `أظهر ${s.studentName} طلاقة ممتازة في متابعة الكلمات، وتناسقاً بصرياً مريحاً مع استيعاب طيب لمعاني القصة.`;
+    let html = '<div class="parent-report-document" id="printable-report">';
+    html += '<header class="report-header"><div class="report-logo"><span class="logo-icon" aria-hidden="true">ن</span><div><h2>نَبراس</h2><p>ملخص جلسة قراءة عربية</p></div></div>';
+    html += '<div class="report-meta"><div><strong>تاريخ الجلسة:</strong> ' + safe(date) + '</div><div><strong>رمز الجلسة:</strong> ' + safe(s.id || 'غير محفوظ') + '</div></div></header>';
+    html += '<div class="report-divider"></div><div class="student-info-box">';
+    html += '<div class="info-item"><span class="label">اسم الطالب / الرمز:</span><span class="value">' + safe(s.studentName || 'غير محدد') + '</span></div>';
+    html += '<div class="info-item"><span class="label">الصف الدراسي:</span><span class="value">الصف ' + safe(s.grade || '—') + '</span></div>';
+    html += '<div class="info-item"><span class="label">النص:</span><span class="value">' + safe(s.textTitle || 'غير محدد') + '</span></div>';
+    html += '<div class="info-item"><span class="label">مدة القراءة:</span><span class="value">' + (Number(s.durationSeconds) || 0) + ' ثانية</span></div></div>';
 
-    if (risk.level === 'high') {
-      statusBadgeClass = 'badge-high';
-      statusText = 'يحتاج إلى خطة دعم وتدريب مكثفة';
-      summaryMessage = `لاحظنا خلال جلسة القراءة أن عيني ${s.studentName} تبذلان جهداً إضافياً في التوقف وإعادة قراءة بعض الكلمات ذات الحروف المتشابهة، مما يؤدي إلى الشعور بالإجهاد السريع وانخفاض تدفق القراءة. هذا مؤشر شائع جداً ويمكن تجاوزه بأنشطة بسيطة وممتعة في المنزل والمدرسة.`;
-    } else if (risk.level === 'moderate') {
-      statusBadgeClass = 'badge-mod';
-      statusText = 'يحتاج متابعة وتدريب منتظم';
-      summaryMessage = `يتقدم ${s.studentName} بشكل جيد في القراءة، ولكن لوحظ بعض التردد البصري عند الكلمات المشكولة أو الطويلة، ونوصي بممارسة تمارين القراءة المشتركة لتعزيز ثقته وسرعته.`;
-    }
+    html += '<section class="report-section"><h3 class="section-title">ملخص الجلسة</h3><div class="summary-card"><p>' +
+      'يعرض هذا التقرير ما سُجّل في جلسة واحدة فقط. هذه الملاحظات التعليمية لا تشخّص عسر القراءة ولا تثبت وجوده أو عدمه. ' +
+      'يُفسَّر الأداء في ضوء عمر الطالب، وتعليمه السابق، ولغته، وظروف الجلسة، وملاحظات مختص مؤهل.' +
+      '</p></div></section>';
 
-    return `
-      <div class="parent-report-document" id="printable-report">
-        <!-- ترويسة التقرير -->
-        <div class="report-header">
-          <div class="report-logo">
-            <span class="logo-icon">👁️</span>
-            <div>
-              <h2>منصة القارئ الذكي</h2>
-              <p>التقييم المبكر لمهارات القراءة وتتبع النظر</p>
-            </div>
-          </div>
-          <div class="report-meta">
-            <div><strong>تاريخ التقييم:</strong> ${new Date(s.date).toLocaleDateString('ar-EG')}</div>
-            <div><strong>رمز الجلسة:</strong> ${s.id}</div>
-          </div>
-        </div>
+    html += '<section class="report-section"><h3 class="section-title">الملاحظات المسجلة</h3><div class="metrics-grid">';
+    html += '<div class="metric-card"><div class="metric-title">سرعة القراءة المحسوبة</div><div class="metric-val">' + speedSummary + '</div><div class="metric-desc">عدد كلمات النص ÷ مدة القراءة</div></div>';
+    html += '<div class="metric-card"><div class="metric-title">فهم المقروء</div><div class="metric-val">' + score + ' / ' + total + '</div><div class="metric-desc">الإجابات الصحيحة المسجلة</div></div>';
+    html += '<div class="metric-card"><div class="metric-title">عينات النظر</div><div class="metric-val">' + (gazeAvailable ? safe(m.totalFixations || 0) + ' تثبيت' : 'غير متاحة') + '</div><div class="metric-desc">' + (gazeAvailable ? 'قياس تقديري عبر كاميرا الجهاز' : 'إشارة غير كافية أو معايرة غير مكتملة') + '</div></div>';
+    html += '<div class="metric-card"><div class="metric-title">حالة القياس</div><div class="metric-val">' + safe(qualityLabel) + '</div><div class="metric-desc">لا توجد درجة خطر أو تشخيص</div></div></div></section>';
 
-        <div class="report-divider"></div>
+    html += '<section class="report-section"><h3 class="section-title">ملاحظات فنية يجب مراجعتها</h3><div class="recommendations-list">';
+    html += '<div class="rec-card"><div class="rec-num">1</div><div><h4>جودة إشارة النظر</h4><p>' + safe(gazeSummary) + '</p></div></div>';
+    html += '<div class="rec-card"><div class="rec-num">2</div><div><h4>القراءة والفهم</h4><p>قارن السرعة المحسوبة وإجابات الفهم بملاحظات المعلم وعينات قراءة أخرى؛ لا تستنتج حالة تعلم من جلسة منفردة.</p></div></div>';
+    html += '<div class="rec-card"><div class="rec-num">3</div><div><h4>خطوة تالية مناسبة</h4><p>عند استمرار القلق، اجمع أدلة متعددة وتواصل مع أخصائي صعوبات تعلم مؤهل لتحديد الحاجة إلى تقييم معياري معتمد.</p></div></div></div></section>';
 
-        <!-- بيانات الطالب -->
-        <div class="student-info-box">
-          <div class="info-item">
-            <span class="label">اسم الطالب:</span>
-            <span class="value">${s.studentName}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">الصف الدراسي:</span>
-            <span class="value">الصف ${s.grade} الابتدائي</span>
-          </div>
-          <div class="info-item">
-            <span class="label">النص المقروء:</span>
-            <span class="value">${s.textTitle}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">النتيجة العامة:</span>
-            <span class="value status-badge ${statusBadgeClass}">${statusText}</span>
-          </div>
-        </div>
-
-        <!-- الملخص التربوي لولي الأمر -->
-        <div class="report-section">
-          <h3 class="section-title">🌟 رسالة إلى الأسرة الكريمة</h3>
-          <div class="summary-card">
-            <p>${summaryMessage}</p>
-          </div>
-        </div>
-
-        <!-- المؤشرات الحيوية المبسطة -->
-        <div class="report-section">
-          <h3 class="section-title">📊 ماذا تظهر حركة عين طفلك أثناء القراءة؟</h3>
-          <div class="metrics-grid">
-            <div class="metric-card">
-              <div class="metric-title">سرعة القراءة</div>
-              <div class="metric-val">${s.wpm} <small>كلمة/دقيقة</small></div>
-              <div class="metric-desc">المعدل الطبيعي لصفه: 65 - 85 ك/د</div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-title">سلاسة تدفق القراءة</div>
-              <div class="metric-val">${s.hasValidGaze ? `${m.avgFixationDurationMs || 0} <small>مللي ثانية</small>` : '<span style="font-size:14px; color:#64748b;">غير متاح (لا توجد إشارة)</span>'}</div>
-              <div class="metric-desc">متوسط زمن التوقف البصري على الكلمة</div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-title">نسبة مراجعة الكلمات</div>
-              <div class="metric-val">${s.hasValidGaze ? `${m.regressionRatePercent || 0}%` : '<span style="font-size:14px; color:#64748b;">غير متاح (لا توجد إشارة)</span>'}</div>
-              <div class="metric-desc">حركات النظر المرتدة للخلف للتأكد</div>
-            </div>
-
-            <div class="metric-card">
-              <div class="metric-title">فهم المقروء</div>
-              <div class="metric-val">${s.comprehensionScore} / ${s.comprehensionTotal}</div>
-              <div class="metric-desc">استيعاب أحداث القصة الرئيسية</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- التمارين المنزلية المقترحة -->
-        <div class="report-section">
-          <h3 class="section-title">🏡 ماذا يمكننا أن نفعل في البيت معاً؟ (10 دقائق يومياً)</h3>
-          <div class="recommendations-list">
-            <div class="rec-card">
-              <div class="rec-num">1</div>
-              <div>
-                <h4>لعبة "صياد النقاط"</h4>
-                <p>تصفحا قصة قصيرة معاً، واطلبي من الطفل أن يضع إصبعه الصغير على جميع الكلمات التي تبدأ بحرف له نقطة تحت مثل (الباء) ثم التي لها نقطتان فوق مثل (التاء). هذا يدرب مسار الإدراك البصري.</p>
-              </div>
-            </div>
-
-            <div class="rec-card">
-              <div class="rec-num">2</div>
-              <div>
-                <h4>القراءة التناوبية اللطيفة (قراءة المرآة)</h4>
-                <p>اقرئي سطراً بصوت دافئ ومريح، ثم دعي طفلك يقرأ السطر التالي. هذا يمنح عينيه استراحة دورية ويخفف من التوتر والقلق.</p>
-              </div>
-            </div>
-
-            <div class="rec-card">
-              <div class="rec-num">3</div>
-              <div>
-                <h4>بطاقة نافذة الكلمات</h4>
-                <p>قصي ورقة صغيرة لتكشف كلمة واحدة أو سطرين فقط في المرة الواحدة أثناء القراءة، لمنع تشتت العين بالسطور السفلية (Visual Crowding).</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- الإخلاء القانوني الإلزامي -->
-        <div class="report-disclaimer">
-          <strong>⚠️ تنبيه تربوي وأخلاقي هام:</strong>
-          نتائج هذا التقييم مستخلصة عبر الذكاء الاصطناعي وتتبع حركة النظر كأداة فرز ومسح مبدئي لمهارات القراءة والمسار البصري. هذه النتيجة ليست تشخيصاً طبياً أو نفسياً لمرض أو إعاقة، وإنما هي مؤشر توجيهي لمساعدة المدرسة والأسرة على تقديم الدعم المبكر للطفل.
-        </div>
-
-        <!-- أزرار الإجراءات في العرض -->
-        <div class="report-actions no-print">
-          <button class="btn btn-primary" onclick="window.print()">🖨️ طباعة التقرير أو حفظه كـ PDF</button>
-          <button class="btn btn-secondary" onclick="window.dashboardModule.closeModal()">إغلاق</button>
-        </div>
-      </div>
-    `;
+    html += '<section class="diagnostic-reasons-card"><h4>تفاصيل الجلسة</h4><ul>' + reasonsHtml + '</ul></section>';
+    html += '<div class="report-disclaimer"><strong>تنبيه مهم:</strong> نَبراس في هذه النسخة نموذج تقني تجريبي. تتبع النظر عبر كاميرا ويب عادية قد يكون غير دقيق، ولا يُعد معيارًا سريريًا مثبتًا لعسر القراءة. لا تستخدم هذه المخرجات لاتخاذ قرار تشخيصي أو تعليمي عالي الأثر دون مراجعة مختص.</div>';
+    html += '<div class="report-actions no-print"><button class="btn btn-primary" onclick="window.print()">طباعة / حفظ كـ PDF</button><button class="btn btn-secondary" onclick="window.dashboardModule.closeModal()">إغلاق</button></div></div>';
+    return html;
   }
 }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { ParentReportGenerator };
-}
+if (typeof module !== 'undefined' && module.exports) module.exports = { ParentReportGenerator };
