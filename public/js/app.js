@@ -117,6 +117,15 @@ class AppRouter {
             </select>
           </div>
 
+          <div class="form-group">
+            <label for="select-second-reading-mode">طريقة قراءة النص الثاني:</label>
+            <select id="select-second-reading-mode" class="form-control">
+              <option value="oral"  >قراءة جهرية</option>
+              <option value="silent" selected>قراءة صامتة</option>
+            </select>
+            <small class="text-muted">يمكن تغيير الخيار قبل بدء الجلسة؛ الافتراضي المقترح للصفين الأول والثاني هو القراءة الجهرية.</small>
+          </div>
+
           <div class="setup-instructions">
             <h4>💡 إرشادات لتحسين ظروف الجلسة:</h4>
             <ul>
@@ -146,6 +155,8 @@ class AppRouter {
     const studentId = studentSelect.value;
     const student = this.dashboardModule.students.find(s => s.id === studentId);
     if (student) {
+      const secondMode = document.getElementById('select-second-reading-mode');
+      if (secondMode) secondMode.value = Number(student.grade) <= 2 ? 'oral' : 'silent';
       // توجيه تلقائي لنص مناسب لصف الطالب
       const matchingText = ARABIC_TEXTS_BANK.find(t => t.grade === student.grade);
       if (matchingText) {
@@ -157,12 +168,13 @@ class AppRouter {
   launchSelectedAssessment() {
     const studentId = document.getElementById('select-student').value;
     const textId = document.getElementById('select-text').value;
+    const secondReadingMode = document.getElementById('select-second-reading-mode')?.value || 'silent';
 
     const student = this.dashboardModule.students.find(s => s.id === studentId);
     const text = ARABIC_TEXTS_BANK.find(t => t.id === textId);
 
     if (student && text) {
-      this.assessmentManager.startSession(student, text);
+      this.assessmentManager.startSession(student, text, secondReadingMode);
     }
   }
 
