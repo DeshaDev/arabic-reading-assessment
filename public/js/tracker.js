@@ -1,7 +1,6 @@
 /**
- * محرك تتبع حركة العين والرؤية الحاسوبية على المتصفح
- * مبني على مكتبة WebGazer.js مفتوحة المصدر (جامعة براون)
- * مع محلل بيومتري حي لفحص الإضاءة والمسافة وحركة الرأس الحقيقية في الوقت الفعلي.
+ * تقدير اتجاه النظر عبر كاميرا الويب باستخدام WebGazer.js.
+ * يلتقط عينات النظر ويقدّر سطوع صورة الكاميرا؛ لا يدّعي قياس المسافة أو اتجاه الرأس أو التشخيص.
  */
 
 class ArabicEyeTracker {
@@ -130,7 +129,7 @@ class ArabicEyeTracker {
       // نعرض فقط وجود عينة نظر حديثة، وسطوع الصورة التقريبي.
       const recentGazeSignal = Boolean(this.currentGaze && performance.now() - (this.currentGaze.t || 0) < 2000);
       this.environment = {
-        faceDetected: recentGazeSignal,
+        gazeSignalAvailable: recentGazeSignal,
         lighting: realLuma > 65 ? 'good' : (realLuma > 30 ? 'moderate' : 'poor'),
         realLuma
       };
@@ -197,7 +196,15 @@ class ArabicEyeTracker {
         return;
       }
       try {
-        for (let i = 0; i < 5; i++) webgazer.recordScreenPosition(targetX, targetY, 'click');
+        const gazeIsRecent = this.currentGaze && Number.isFinite(this.currentGaze.t) &&
+          performance.now() - this.currentGaze.t < 500;
+        if (!gazeIsRecent) {
+          resolve(false);
+          return;
+        }
+        // One physical click contributes one labelled sample. Do not duplicate samples
+        // to make calibration look more complete than it is.
+        webgazer.recordScreenPosition(targetX, targetY, 'click');
         this.calibrationClicks++;
         setTimeout(() => resolve(true), 150);
       } catch (err) {
