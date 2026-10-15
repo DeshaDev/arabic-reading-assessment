@@ -38,17 +38,22 @@ function parseArgs(argv) {
 function parseInput(text) {
   const trimmed = String(text || '').replace(/^\uFEFF/, '').trim();
   if (!trimmed) throw new TypeError('ملف الإدخال فارغ.');
-  let parsed;
-  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-    parsed = JSON.parse(trimmed);
-    if (!Array.isArray(parsed) && parsed && Array.isArray(parsed.records)) parsed = parsed.records;
-    if (!Array.isArray(parsed)) throw new TypeError('ملف JSON يجب أن يكون مصفوفة أو كائنًا يحتوي على records.');
-    return parsed;
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.records)) return parsed.records;
+    if (parsed && typeof parsed === 'object') return [parsed];
+    throw new TypeError('ملف JSON يجب أن يكون مصفوفة أو كائنًا يحتوي على records أو سجلًا واحدًا.');
+  } catch (error) {
+    const lines = trimmed.split(/\r?\n/).filter(Boolean);
+    if (error instanceof TypeError && /ملف JSON يجب/.test(error.message)) throw error;
+    if (lines.length <= 1) throw error;
+    return lines.map((line, index) => {
+      try { return JSON.parse(line); }
+      catch (_) { throw new TypeError('تعذر تحليل السطر ' + (index + 1) + ' من JSONL.'); }
+    });
   }
-  return trimmed.split(/\r?\n/).filter(Boolean).map((line, index) => {
-    try { return JSON.parse(line); }
-    catch (_) { throw new TypeError('تعذر تحليل السطر ' + (index + 1) + ' من JSONL.'); }
-  });
 }
 
 function main(argv) {
