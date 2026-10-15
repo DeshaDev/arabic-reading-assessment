@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { alignReadingTranscript } = require('./public/js/reading-alignment');
+const { alignReadingTranscript } = require('./lib/reading-alignment');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
