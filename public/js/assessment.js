@@ -76,7 +76,7 @@ class AssessmentSessionManager {
         <p id="camera-startup-status" class="text-muted" role="status" aria-live="polite">يجري تجهيز الكاميرا… اسمح بالوصول إليها من نافذة المتصفح عند الطلب.</p>
 
         <div id="camera-alert-box" style="display: none; margin: 20px 0; padding: 16px 20px; border-radius: 10px; background: #fef2f2; border: 1px solid #f87171; color: #991b1b; text-align: right; line-height: 1.6;">
-          <strong>⚠️ الكاميرا غير مفعلة أو محجوبة بالعتاد:</strong>
+          <strong>⚠️ تعذّر بدء الكاميرا أو نموذج تتبع النظر:</strong>
           <p id="camera-err-msg" style="margin: 6px 0 10px 0; font-size: 13px;">جاري فحص الكاميرا...</p>
           <ol style="margin: 0 20px 12px 0; padding: 0; font-size: 13px;">
             <li><strong>غطاء الكاميرا المنزلق (Shutter):</strong> إذا كان اللابتوب به غطاء بلاستيكي صغير فوق العدسة، تأكد من فتحه.</li>
@@ -127,7 +127,9 @@ class AssessmentSessionManager {
       if (startup) {
         startup.textContent = state.status === 'active'
           ? 'الكاميرا تعمل الآن. ابدأ المعايرة ثم القراءة.'
-          : 'تعذر تشغيل الكاميرا: ' + (state.message || 'تحقق من الإذن والجهاز.');
+          : state.status === 'tracking_error'
+            ? (state.message || 'الكاميرا تعمل، لكن نموذج تتبع النظر لم يبدأ.')
+            : 'تعذر تشغيل الكاميرا: ' + (state.message || 'تحقق من الإذن والجهاز.');
       }
       if (state.status === 'error') {
         const alertBox = document.getElementById('camera-alert-box');
