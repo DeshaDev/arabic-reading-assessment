@@ -45,6 +45,7 @@ class AppRouter {
       if (manager.readingTimer) clearInterval(manager.readingTimer);
       if (manager.ranTimer) clearInterval(manager.ranTimer);
       manager.segmentActive = false;
+      manager.discardAudioOnStop = true;
       if (manager.activeRecorder && manager.activeRecorder.state === 'recording') {
         try { manager.activeRecorder.stop(); } catch (_) {}
       }
