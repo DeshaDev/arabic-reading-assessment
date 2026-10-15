@@ -58,6 +58,8 @@ test('reading screen shows live word and line estimate and highlights the mapped
   assert.match(enhancementSource, /allowUncalibratedGaze = false/);
   assert.doesNotMatch(enhancementSource, /تقدير غير مُعاير:/);
   assert.match(enhancementSource, /if \(!this\.calibrationCompleted\) \{/);
+  assert.match(enhancementSource, /const x = gaze\.x - rect\.left/);
+  assert.doesNotMatch(enhancementSource, /Math\.max\(4, Math\.min\(wrapper\.clientWidth - 4/);
 });
 
 test('calibration trains across nine screen regions and records time-separated samples', () => {
@@ -69,6 +71,10 @@ test('calibration trains across nine screen regions and records time-separated s
   assert.equal((trainingPoints.match(/\{ name: '/g) || []).length, 9);
   assert.match(trackerSource, /for \(let sample = 0; sample < 3; sample\+\+\)/);
   assert.match(trackerSource, /await new Promise\(resolve => setTimeout\(resolve, 140\)\)/);
+  assert.match(trackerSource, /this\.calibrationClicks >= 27/);
+  assert.match(trackerSource, /calib-prediction-dot/);
+  assert.match(enhancementSource, /class="calib-prediction-dot"/);
+  assert.match(enhancementSource, /validationDetailItems/);
   assert.doesNotMatch(baseSource, /تخطي المعايرة والبدء في القراءة فوراً/);
   assert.match(baseSource, /تسع نقاط معايرة/);
 });
