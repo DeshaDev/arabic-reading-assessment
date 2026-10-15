@@ -816,13 +816,37 @@
     const segmentCards = segments.map((segment, index) => {
       const speed = window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds);
       const audio = segment.audioUrl
-        ? '<audio controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">التسجيل محلي مؤقتًا. لا يُرسل إلى مزوّد التفريغ إلا بعد الموافقة الصريحة والضغط على زر التحليل.</p>'
+        ? '<audio id="oral-audio-player-' + index + '" controls preload="none" src="' + segment.audioUrl + '">المتصفح لا يدعم تشغيل الصوت.</audio><p class="text-muted">التسجيل محلي مؤقتًا. لا يُرسل إلى مزوّد التفريغ إلا بعد الموافقة الصريحة والضغط على زر التحليل.</p>'
         : '';
       const analysisControls = segment.audioUrl && segment.mode === 'oral'
         ? (window.NEBRAS_DEMO_MODE
           ? '<div class="asr-consent-panel"><span class="badge-info">تحليل الصوت غير متاح في Pages</span><p class="text-muted">يمكنك تجربة التقييم وحفظ تقريره على هذا المتصفح. تفريغ الصوت الآلي يتطلب تشغيل الخادم مع إعداد مفتاح API؛ لن يُرسل هذا التسجيل من صفحة Pages.</p></div>'
           : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
         : '';
+      const acoustic = segment.acousticAnalysis || {};
+      const formatAudioTime = seconds => {
+        const value = Math.max(0, Number(seconds) || 0);
+        return Math.floor(value / 60) + ':' + (value % 60).toFixed(2).padStart(5, '0');
+      };
+      const pauseItems = (Array.isArray(acoustic.pauses) ? acoustic.pauses : [])
+        .slice()
+        .sort((a, b) => Number(b.durationMs || 0) - Number(a.durationMs || 0))
+        .slice(0, 6)
+        .map(pause => {
+          const start = Math.max(0, Number(pause.startSeconds) || 0);
+          const end = Math.max(start, Number(pause.endSeconds) || start);
+          return '<li><span>' + formatAudioTime(start) + '–' + formatAudioTime(end) + ' · ' +
+            (Math.round(Number(pause.durationMs) || 0) / 1000).toFixed(2) + ' ث</span><button type="button" class="btn btn-sm btn-outline" onclick="window.assessmentManager.playAudioAt(' +
+            index + ',' + start.toFixed(2) + ')">استمع من هنا</button></li>';
+        }).join('');
+      const acousticMarkup = acoustic.quality === 'observed'
+        ? '<div class="acoustic-analysis-card"><strong>فحص صوتي محلي: فترات انخفاض الطاقة</strong><div class="acoustic-stats"><div><span>فترات داخلية</span><strong>' +
+          (Number(acoustic.pauseCount) || 0) + '</strong></div><div><span>فترات 0.7 ثانية فأكثر</span><strong>' +
+          (Number(acoustic.longPauseCount) || 0) + '</strong></div><div><span>أطول فترة</span><strong>' +
+          ((Number(acoustic.longestPauseMs) || 0) / 1000).toFixed(2) + ' ث</strong></div></div>' +
+          (pauseItems ? '<ul class="acoustic-pause-list">' + pauseItems + '</ul>' : '<p>لم تُرصد فترات داخلية تتجاوز عتبة الفحص في هذا التسجيل.</p>') +
+          '<p class="text-muted">' + safe(acoustic.note || 'هذه فترات انخفاض طاقة صوتية وليست أخطاء أو ترددات مؤكدة.') + '</p></div>'
+        : (acoustic.note ? '<div class="acoustic-analysis-card"><strong>تعذر تحليل فترات الصوت محليًا</strong><p class="text-muted">' + safe(acoustic.note) + '</p></div>' : '');
       const wordGaze = segment.wordGaze || {};
       const indexedWords = String(segment.content || '').match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || [];
       const topDwell = (Array.isArray(wordGaze.perWord) ? wordGaze.perWord : [])
@@ -847,7 +871,7 @@
         '</strong></div><div><span>سرعة المقطع</span><strong>' + (speed === null ? 'غير متاحة' : speed + ' ك/د') +
         '</strong></div><div><span>الكلمات</span><strong>' + segment.wordCount + '</strong></div><div><span>أخطاء المعلم</span><strong>' +
         segment.errors + '</strong></div><div><span>إشارة النظر</span><strong>' + (segment.hasValidGaze ? 'عينات مبدئية' : 'غير كافية') +
-        '</strong></div></div>' + wordGazeMarkup + audio + analysisControls + '</article>';
+        '</strong></div></div>' + wordGazeMarkup + acousticMarkup + audio + analysisControls + '</article>';
     }).join('');
     const visualButtons = segments.map((segment, index) => '<button class="btn btn-sm ' + (index === 0 ? 'active' : '') +
       '" id="visual-segment-' + index + '" onclick="window.assessmentManager.selectVisualSegment(' + index + ')">' + (index + 1) + '. ' + safe(segment.passageTitle) + '</button>').join('');
@@ -893,6 +917,22 @@
     canvas.height = wrapper.clientHeight;
     this.analysisVisualizer = new GazeVisualizer(canvas);
     this.selectVisualSegment(0);
+  };
+
+  proto.playAudioAt = function (index, startSeconds) {
+    const player = document.getElementById('oral-audio-player-' + index);
+    if (!player) return;
+    const start = Number(startSeconds);
+    player.currentTime = Number.isFinite(start) && start >= 0 ? Math.min(start, player.duration || start) : 0;
+    const result = player.play();
+    if (result && typeof result.catch === 'function') {
+      result.catch(() => {
+        const card = player.closest('.reading-summary-card');
+        if (!card) return;
+        const note = card.querySelector('.acoustic-analysis-card .text-muted');
+        if (note) note.textContent = 'اضغط تشغيل مشغل الصوت أولًا ثم اختر نقطة المراجعة.';
+      });
+    }
   };
 
   proto.setAudioAnalysisConsent = function (index, accepted) {
