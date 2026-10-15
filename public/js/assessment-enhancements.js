@@ -456,6 +456,21 @@
     const metricInput = hasValidGaze ? combinedMetrics : this.metricsEngine.getEmptyMetrics();
     const risk = this.metricsEngine.classifyRisk(this.currentStudent.grade, summary.durationSeconds, summary.wordCount, metricInput, correct, questionCount, summary.comparableMode);
     risk.hasValidGaze = hasValidGaze;
+    const markedCounts = this.readingSegments.reduce((total, segment) => {
+      const counts = window.ReadingAssessmentProtocol.summarizeWordMarks(segment.wordMarks || []);
+      total.total += counts.total;
+      total.substitution += counts.substitution;
+      total.omission += counts.omission;
+      total.hesitation += counts.hesitation;
+      total.selfCorrection += counts.selfCorrection;
+      return total;
+    }, { total: 0, substitution: 0, omission: 0, hesitation: 0, selfCorrection: 0 });
+    if (markedCounts.total) {
+      risk.reasons.push('ملاحظات المعلم على الكلمات: ' + markedCounts.total +
+        ' علامات (استبدال/خطأ ' + markedCounts.substitution + '، حذف ' + markedCounts.omission +
+        '، تردد ' + markedCounts.hesitation + '، تصحيح ذاتي ' + markedCounts.selfCorrection + ').');
+    }
+    if (!summary.comparableMode) risk.reasons.push('لم تُدمج السرعة بين قراءة جهرية وأخرى صامتة؛ تظهر سرعة كل مقطع بشكل مستقل.');
     if (hasValidGaze && this.readingSegments.some(segment => !segment.hasValidGaze)) risk.reasons.push('اختلفت جودة إشارة النظر بين مقطعي القراءة؛ راجع كل مقطع على حدة.');
     const readingSegments = this.readingSegments.map(segment => ({
       passageId: segment.passageId, passageTitle: segment.passageTitle, mode: segment.mode,
