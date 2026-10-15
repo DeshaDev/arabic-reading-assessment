@@ -1,0 +1,423 @@
+{
+  "students": [
+    {
+      "id": "std_001",
+      "name": "عمر خالد المنصور",
+      "gender": "ذكر",
+      "grade": 3,
+      "age": 8,
+      "school": "مدارس الرواد الأهلية",
+      "classroom": "الثالث - أ",
+      "lastAssessment": "2026-10-15",
+      "riskLevel": "moderate",
+      "avgWpm": 420,
+      "notes": "ملاحظة تعثر في قراءة الحروف المتشابهة وارتداد النظر المتكرر"
+    },
+    {
+      "id": "std_002",
+      "name": "سارة أحمد العتيبي",
+      "gender": "أنثى",
+      "grade": 3,
+      "age": 8,
+      "school": "مدارس الرواد الأهلية",
+      "classroom": "الثالث - أ",
+      "lastAssessment": "2026-10-12",
+      "riskLevel": "low",
+      "avgWpm": 78,
+      "notes": "قراءة سلسة مع استيعاب قرائي ممتاز"
+    },
+    {
+      "id": "std_003",
+      "name": "يوسف مصطفى إبراهيم",
+      "gender": "ذكر",
+      "grade": 2,
+      "age": 7,
+      "school": "مدارس النيل المصرية",
+      "classroom": "الثاني - ب",
+      "lastAssessment": "2026-10-11",
+      "riskLevel": "moderate",
+      "avgWpm": 46,
+      "notes": "بطء في فك شفرة الكلمات المشكولة ويحتاج متابعة"
+    },
+    {
+      "id": "std_004",
+      "name": "مريم راشد الشامسي",
+      "gender": "أنثى",
+      "grade": 4,
+      "age": 9,
+      "school": "مدرسة الاتحاد الوطنية",
+      "classroom": "الرابع - ج",
+      "lastAssessment": "2026-10-13",
+      "riskLevel": "low",
+      "avgWpm": 92,
+      "notes": "أداء متميز وتثبيت بصري منتظم"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "sess_1792054988415",
+      "studentId": "std_001",
+      "studentName": "عمر خالد المنصور",
+      "grade": 3,
+      "date": "2026-10-15T09:03:08.415Z",
+      "textId": "text_gr3_01",
+      "textTitle": "مُغَامَرَةُ الصَّقْرِ فِي الجَبَلِ",
+      "durationSeconds": 8,
+      "wpm": 420,
+      "comprehensionScore": 0,
+      "comprehensionTotal": 3,
+      "metrics": {
+        "fixations": [],
+        "totalFixations": 0,
+        "avgFixationDurationMs": 0,
+        "forwardSaccadesCount": 0,
+        "regressionsCount": 0,
+        "regressionRatePercent": 0,
+        "lineSweepsCount": 0,
+        "sampleCount": 0
+      },
+      "riskClassification": {
+        "level": "moderate",
+        "levelAr": "مؤشر خطر متوسط (يحتاج متابعة وتدريب)",
+        "score": 45,
+        "color": "#f59e0b",
+        "wpm": 420,
+        "normWpm": 75,
+        "normFixationMs": 235,
+        "hasValidGaze": false,
+        "reasons": [
+          "درجة استيعاب منخفضة للنص (0 من 3) تشير لصعوبة استيعاب المقروء.",
+          "⚠️ لم تتوفر إشارات حركة عين كافية من الكاميرا في هذه الجلسة؛ اعتمد التقييم على زمن القراءة وأسئلة الفهم فقط كفرز مبدئي سلوكي."
+        ]
+      },
+      "gazeData": []
+    },
+    {
+      "id": "sess_1792013969509",
+      "studentId": "std_001",
+      "studentName": "عمر خالد المنصور",
+      "grade": 3,
+      "date": "2026-10-14T21:39:29.509Z",
+      "textId": "text_gr3_01",
+      "textTitle": "مُغَامَرَةُ الصَّقْرِ فِي الجَبَلِ",
+      "durationSeconds": 9,
+      "wpm": 373,
+      "comprehensionScore": 3,
+      "comprehensionTotal": 3,
+      "metrics": {
+        "fixations": [],
+        "totalFixations": 0,
+        "avgFixationDurationMs": 0,
+        "forwardSaccadesCount": 0,
+        "regressionsCount": 0,
+        "regressionRatePercent": 0,
+        "lineSweepsCount": 0,
+        "sampleCount": 0
+      },
+      "riskClassification": {
+        "level": "low",
+        "levelAr": "مؤشر خطر منخفض (ضمن النطاق الطبيعي)",
+        "score": 20,
+        "color": "#10b981",
+        "wpm": 373,
+        "normWpm": 75,
+        "normFixationMs": 235,
+        "hasValidGaze": false,
+        "reasons": [
+          "⚠️ لم تتوفر إشارات حركة عين كافية من الكاميرا في هذه الجلسة؛ اعتمد التقييم على زمن القراءة وأسئلة الفهم فقط كفرز مبدئي سلوكي."
+        ]
+      },
+      "gazeData": []
+    },
+    {
+      "id": "sess_1792009655319",
+      "studentId": "std_001",
+      "studentName": "عمر خالد المنصور",
+      "grade": 3,
+      "date": "2026-10-14T20:27:35.319Z",
+      "textId": "text_gr3_01",
+      "textTitle": "مُغَامَرَةُ الصَّقْرِ فِي الجَبَلِ",
+      "durationSeconds": 8,
+      "wpm": 420,
+      "comprehensionScore": 2,
+      "comprehensionTotal": 3,
+      "metrics": {
+        "fixations": [
+          {
+            "startTime": 20812.70000000596,
+            "endTime": 21578.60000000596,
+            "durationMs": 799,
+            "x": 548,
+            "y": 70
+          },
+          {
+            "startTime": 21645.20000000596,
+            "endTime": 22411.10000000596,
+            "durationMs": 799,
+            "x": 310,
+            "y": 70
+          },
+          {
+            "startTime": 22477.70000000596,
+            "endTime": 22744.10000000596,
+            "durationMs": 300,
+            "x": 138,
+            "y": 70
+          },
+          {
+            "startTime": 22810.70000000596,
+            "endTime": 23243.60000000596,
+            "durationMs": 466,
+            "x": 600,
+            "y": 133
+          },
+          {
+            "startTime": 23310.20000000596,
+            "endTime": 24076.10000000596,
+            "durationMs": 799,
+            "x": 405,
+            "y": 133
+          },
+          {
+            "startTime": 24142.70000000596,
+            "endTime": 24742.10000000596,
+            "durationMs": 633,
+            "x": 185,
+            "y": 133
+          },
+          {
+            "startTime": 24808.70000000596,
+            "endTime": 24908.60000000596,
+            "durationMs": 133,
+            "x": 674,
+            "y": 196
+          },
+          {
+            "startTime": 24975.20000000596,
+            "endTime": 25741.10000000596,
+            "durationMs": 799,
+            "x": 500,
+            "y": 196
+          },
+          {
+            "startTime": 25807.70000000596,
+            "endTime": 26573.60000000596,
+            "durationMs": 799,
+            "x": 263,
+            "y": 196
+          },
+          {
+            "startTime": 26640.20000000596,
+            "endTime": 26740.10000000596,
+            "durationMs": 133,
+            "x": 114,
+            "y": 196
+          },
+          {
+            "startTime": 26806.70000000596,
+            "endTime": 27406.10000000596,
+            "durationMs": 633,
+            "x": 573,
+            "y": 259
+          },
+          {
+            "startTime": 27472.70000000596,
+            "endTime": 28238.600000005958,
+            "durationMs": 799,
+            "x": 358,
+            "y": 259
+          },
+          {
+            "startTime": 28305.20000000596,
+            "endTime": 28738.100000005958,
+            "durationMs": 466,
+            "x": 161,
+            "y": 259
+          }
+        ],
+        "totalFixations": 13,
+        "avgFixationDurationMs": 581,
+        "forwardSaccadesCount": 9,
+        "regressionsCount": 0,
+        "regressionRatePercent": 0,
+        "lineSweepsCount": 3,
+        "sampleCount": 240
+      },
+      "riskClassification": {
+        "level": "moderate",
+        "levelAr": "مؤشر خطر متوسط (يحتاج متابعة وتدريب)",
+        "score": 50,
+        "color": "#f59e0b",
+        "wpm": 420,
+        "normWpm": 75,
+        "normFixationMs": 235,
+        "reasons": [
+          "طول غير معتاد في مدة التثبيت البصري (581 مللي ثانية مقارنة بالمعدل الطبيعي 235ms)، مما يشير لبطء فك شفرة الكلمة."
+        ]
+      },
+      "gazeData": [
+        {
+          "startTime": 20812.70000000596,
+          "endTime": 21578.60000000596,
+          "durationMs": 799,
+          "x": 548,
+          "y": 70
+        },
+        {
+          "startTime": 21645.20000000596,
+          "endTime": 22411.10000000596,
+          "durationMs": 799,
+          "x": 310,
+          "y": 70
+        },
+        {
+          "startTime": 22477.70000000596,
+          "endTime": 22744.10000000596,
+          "durationMs": 300,
+          "x": 138,
+          "y": 70
+        },
+        {
+          "startTime": 22810.70000000596,
+          "endTime": 23243.60000000596,
+          "durationMs": 466,
+          "x": 600,
+          "y": 133
+        },
+        {
+          "startTime": 23310.20000000596,
+          "endTime": 24076.10000000596,
+          "durationMs": 799,
+          "x": 405,
+          "y": 133
+        },
+        {
+          "startTime": 24142.70000000596,
+          "endTime": 24742.10000000596,
+          "durationMs": 633,
+          "x": 185,
+          "y": 133
+        },
+        {
+          "startTime": 24808.70000000596,
+          "endTime": 24908.60000000596,
+          "durationMs": 133,
+          "x": 674,
+          "y": 196
+        },
+        {
+          "startTime": 24975.20000000596,
+          "endTime": 25741.10000000596,
+          "durationMs": 799,
+          "x": 500,
+          "y": 196
+        },
+        {
+          "startTime": 25807.70000000596,
+          "endTime": 26573.60000000596,
+          "durationMs": 799,
+          "x": 263,
+          "y": 196
+        },
+        {
+          "startTime": 26640.20000000596,
+          "endTime": 26740.10000000596,
+          "durationMs": 133,
+          "x": 114,
+          "y": 196
+        },
+        {
+          "startTime": 26806.70000000596,
+          "endTime": 27406.10000000596,
+          "durationMs": 633,
+          "x": 573,
+          "y": 259
+        },
+        {
+          "startTime": 27472.70000000596,
+          "endTime": 28238.600000005958,
+          "durationMs": 799,
+          "x": 358,
+          "y": 259
+        },
+        {
+          "startTime": 28305.20000000596,
+          "endTime": 28738.100000005958,
+          "durationMs": 466,
+          "x": 161,
+          "y": 259
+        }
+      ]
+    },
+    {
+      "id": "sess_1792007778661",
+      "studentId": "std_001",
+      "studentName": "عمر خالد المنصور",
+      "grade": 3,
+      "date": "2026-10-14T19:56:18.661Z",
+      "textId": "text_gr3_01",
+      "textTitle": "مُغَامَرَةُ الصَّقْرِ فِي الجَبَلِ",
+      "durationSeconds": 14,
+      "wpm": 240,
+      "comprehensionScore": 2,
+      "comprehensionTotal": 3,
+      "metrics": {
+        "fixations": [],
+        "totalFixations": 0,
+        "avgFixationDurationMs": 0,
+        "forwardSaccadesCount": 0,
+        "regressionsCount": 0,
+        "regressionRatePercent": 0,
+        "lineSweepsCount": 0,
+        "sampleCount": 0
+      },
+      "riskClassification": {
+        "level": "low",
+        "levelAr": "مؤشر خطر منخفض (ضمن النطاق الطبيعي)",
+        "score": 20,
+        "color": "#10b981",
+        "wpm": 240,
+        "normWpm": 75,
+        "normFixationMs": 235,
+        "reasons": [
+          "حركات العين تتبع نمطاً طبيعياً وسلساً لاتجاه القراءة العربي المناسب لعمره وصفه."
+        ]
+      },
+      "gazeData": []
+    },
+    {
+      "id": "sess_101",
+      "studentId": "std_001",
+      "studentName": "عمر خالد المنصور",
+      "grade": 3,
+      "date": "2026-10-10T10:30:00Z",
+      "textId": "text_gr3_01",
+      "textTitle": "مغامرة الصقر في الجبل",
+      "durationSeconds": 110,
+      "wpm": 42,
+      "comprehensionScore": 2,
+      "comprehensionTotal": 3,
+      "metrics": {
+        "avgFixationDurationMs": 345,
+        "totalFixations": 128,
+        "totalSaccades": 127,
+        "forwardSaccades": 78,
+        "regressions": 49,
+        "regressionRatePercent": 38.5,
+        "saccadeAmplitudeAvgDeg": 1.8,
+        "lineSweeps": 6
+      },
+      "riskClassification": {
+        "level": "high",
+        "levelAr": "مؤشر خطر مرتفع",
+        "score": 78,
+        "color": "#ef4444",
+        "reasons": [
+          "ارتفاع ملحوظ في نسبة الارتدادات العكسية (38.5% مقارنة بالمعيار الطبيعي 15%)",
+          "طول مدة التثبيت البصري على الكلمات المشابهة (345ms مقارنة بالمعيار 240ms)",
+          "انخفاض سرعة القراءة بالكلمة في الدقيقة (42 ك/د مقارنة بمعيار الصف 65-80 ك/د)"
+        ]
+      }
+    }
+  ]
+}

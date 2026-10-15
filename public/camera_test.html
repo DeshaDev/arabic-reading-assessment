@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>اختبار الكاميرا المباشر | التشخيص الشامل</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0f172a; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; text-align: center; }
+    .card { background: #1e293b; padding: 30px; border-radius: 16px; max-width: 650px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    video { width: 100%; max-width: 480px; height: 320px; background: #000; border-radius: 12px; border: 3px solid #3b82f6; margin: 20px 0; object-fit: cover; }
+    .btn { background: #2563eb; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+    .btn:hover { background: #1d4ed8; }
+    .status { padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 14px; font-weight: bold; }
+    .status.ok { background: #064e3b; color: #34d399; }
+    .status.err { background: #7f1d1d; color: #f87171; text-align: right; }
+    ol { text-align: right; line-height: 1.8; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>📸 فاحص الكاميرا المباشر (Diagnostic Tool)</h2>
+    <p>هذه الصفحة تفحص اتصال الكاميرا مع نظام ويندوز والمتصفح بشكل مباشر ومجرد بدون أي خوارزميات إضافية.</p>
+
+    <video id="liveVideo" autoplay playsinline muted></video>
+
+    <div>
+      <button class="btn" onclick="startCamera()">تشغيل الكاميرا الآن 🟢</button>
+      <a href="/" style="color: #60a5fa; margin-right: 15px; text-decoration: none;">← العودة للمنصة الرئيسية</a>
+    </div>
+
+    <div id="statusBox" class="status" style="display:none;"></div>
+  </div>
+
+  <script>
+    async function startCamera() {
+      const video = document.getElementById('liveVideo');
+      const status = document.getElementById('statusBox');
+      status.style.display = 'block';
+      status.className = 'status';
+      status.innerText = 'جاري طلب إذن الكاميرا من المتصفح...';
+
+      try {
+        if (window.currentStream) {
+          window.currentStream.getTracks().forEach(t => t.stop());
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } 
+        });
+        window.currentStream = stream;
+        video.srcObject = stream;
+        await video.play();
+
+        status.className = 'status ok';
+        status.innerText = '✅ الكاميرا تعمل بنجاح وبث الفيديو مباشر! الدقة: ' + video.videoWidth + 'x' + video.videoHeight;
+      } catch (err) {
+        console.error(err);
+        status.className = 'status err';
+        status.innerHTML = `
+          <strong>❌ تعذر تشغيل الكاميرا (${err.name}):</strong>
+          <p>${err.message}</p>
+          <hr style="border-color: rgba(255,255,255,0.2)">
+          <strong>خطوات الحل في ويندوز و Chrome:</strong>
+          <ol>
+            <li><strong>غطاء الكاميرا (Shutter):</strong> تأكد أن الغطاء المنزلق الصغير على عدسة كاميرا اللابتوب مفتوح (إذا رأيت نقطة حمراء أو برتقالية على العدسة فالغطاء مقفل).</li>
+            <li><strong>زر الكاميرا في لوحة المفاتيح:</strong> اضغط <code>Fn + F8</code> أو <code>Fn + F10</code> (أو زر الكاميرا في صف الأزرار العلوي).</li>
+            <li><strong>إعدادات خصوصية ويندوز:</strong> افتح قائمة ابدأ -> اكتب <em>Camera privacy settings</em> -> تأكد من تفعيل <em>Camera access</em> و <em>Let desktop apps access your camera</em>.</li>
+            <li><strong>إذن المتصفح:</strong> اضغط على أيقونة الإعدادات 🔒 بجانب <code>localhost:3000</code> في شريط العنوان واختر <em>Allow</em> للكاميرا.</li>
+          </ol>
+        `;
+      }
+    }
+
+    // تشغيل تلقائي عند الفتح
+    window.addEventListener('DOMContentLoaded', startCamera);
+  </script>
+</body>
+</html>
