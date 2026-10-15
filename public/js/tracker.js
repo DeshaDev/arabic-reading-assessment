@@ -16,10 +16,22 @@ class ArabicEyeTracker {
     this.calibrationClicks = 0;
     this.envInterval = null;
     this.styleInterval = null;
+    this.initializationPromise = null;
   }
 
   async initialize() {
     if (this.isStreaming && this.isCameraActive()) return true;
+    if (this.initializationPromise) return this.initializationPromise;
+    const pending = this.initializeEngine();
+    this.initializationPromise = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.initializationPromise === pending) this.initializationPromise = null;
+    }
+  }
+
+  async initializeEngine() {
     if (typeof webgazer === 'undefined') {
       console.error('WebGazer library not loaded');
       this.cameraError = 'مكتبة WebGazer غير متوفرة';
