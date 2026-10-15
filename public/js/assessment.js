@@ -262,7 +262,7 @@ class AssessmentSessionManager {
 
           if (clicksDone >= 3) {
             targetEl.removeEventListener('click', handleClick);
-              resolve();
+            resolve();
           }
         };
 
@@ -351,7 +351,7 @@ class AssessmentSessionManager {
       });
 
       // رسم المؤشر المباشر تماشياً مع حركة بؤبؤ العين فقط
-      this.visualizer.drawLiveGaze(boundedX, boundedY, gaze.conf || 0.95);
+      this.visualizer.drawLiveGaze(boundedX, boundedY);
     };
 
     // عداد القراءة
@@ -419,8 +419,8 @@ class AssessmentSessionManager {
   }
 
   countWords(text) {
-    const normalized = String(text || '').replace(/[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]/g, '');
-    return (normalized.match(/[\\p{L}\\p{N}]+/gu) || []).length;
+    const normalized = String(text || '').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
+    return (normalized.match(/[\p{L}\p{N}]+/gu) || []).length;
   }
 
   // المرحلة 5: معالجة النتائج وتصنيف الخطر
