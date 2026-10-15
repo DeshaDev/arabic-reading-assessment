@@ -10,7 +10,7 @@ const root = path.join(__dirname, '..');
 const enhancementSource = fs.readFileSync(path.join(root, 'public/js/assessment-enhancements.js'), 'utf8');
 const baseSource = fs.readFileSync(path.join(root, 'public/js/assessment.js'), 'utf8');
 
-test('skipping calibration opens the first reading passage directly and flags gaze as uncalibrated', () => {
+test('skipping calibration returns to camera setup and never opens an uncalibrated reading session', () => {
   class AssessmentSessionManager {}
   const sandbox = {
     AssessmentSessionManager,
@@ -29,17 +29,19 @@ test('skipping calibration opens the first reading passage directly and flags ga
   vm.runInNewContext(enhancementSource, sandbox, { filename: 'assessment-enhancements.js' });
 
   const manager = Object.create(AssessmentSessionManager.prototype);
-  const called = [];
+  let setupRendered = false;
   manager.calibrationCompleted = true;
-  manager.allowUncalibratedGaze = false;
-  manager.startReading = (...args) => called.push(args);
-  manager.startRapidNaming = () => assert.fail('skip should not force a separate rapid-naming task');
+  manager.allowUncalibratedGaze = true;
+  manager.stage = 'calibration';
+  manager.startReading = () => assert.fail('must not start word tracking without validated calibration');
+  manager.renderEnvironmentCheck = () => { setupRendered = true; };
 
   manager.skipCalibration();
 
   assert.equal(manager.calibrationCompleted, false);
-  assert.equal(manager.allowUncalibratedGaze, true);
-  assert.deepEqual(called, [['oral', 0]]);
+  assert.equal(manager.allowUncalibratedGaze, false);
+  assert.equal(manager.stage, 'env_check');
+  assert.equal(setupRendered, true);
 });
 
 test('successful calibration proceeds to the reading passage without an unrelated extra step', () => {
@@ -52,7 +54,9 @@ test('reading screen shows live word and line estimate and highlights the mapped
   assert.match(enhancementSource, /إشارة النظر خارج النص أو بين الكلمات/);
   assert.match(enhancementSource, /classList\.add\('is-current-gaze'\)/);
   assert.match(enhancementSource, /السطر '\s*\+\s*wordItem\.lineNumber/);
-  assert.match(enhancementSource, /allowUncalibratedGaze/);
+  assert.match(enhancementSource, /allowUncalibratedGaze = false/);
+  assert.doesNotMatch(enhancementSource, /تقدير غير مُعاير:/);
+  assert.match(enhancementSource, /if \(!this\.calibrationCompleted\) \{/);
 });
 
 test('oral reading records audio by default after the user starts the passage, with a downloadable result', () => {
