@@ -10,7 +10,13 @@ const http = require('node:http');
 test('session API saves sanitized gaze and acoustic summaries without raw samples', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nebras-api-test-'));
   const priorDataDir = process.env.NEBRAS_DATA_DIR;
+  const priorOpenAiKey = process.env.OPENAI_API_KEY;
+  const priorTimestampModel = process.env.OPENAI_WORD_TIMESTAMP_MODEL;
+  const priorTimestampSetting = process.env.OPENAI_ENABLE_WORD_TIMESTAMPS;
   process.env.NEBRAS_DATA_DIR = tempDir;
+  process.env.OPENAI_API_KEY = '';
+  delete process.env.OPENAI_WORD_TIMESTAMP_MODEL;
+  delete process.env.OPENAI_ENABLE_WORD_TIMESTAMPS;
 
   const serverPath = require.resolve('../server.js');
   delete require.cache[serverPath];
@@ -24,6 +30,11 @@ test('session API saves sanitized gaze and acoustic summaries without raw sample
     });
     const address = server.address();
     const baseUrl = 'http://127.0.0.1:' + address.port;
+    const health = await fetch(baseUrl + '/api/health').then(response => response.json());
+    assert.equal(health.version, '1.4.0');
+    assert.equal(health.automaticSpeechAnalysisEnabled, false);
+    assert.equal(health.wordTimestampAnalysisEnabled, false);
+    assert.match(health.wordTimestampDisabledReason, /لا يوجد مفتاح API/);
     const requestJson = async (route, method, body) => {
       const response = await fetch(baseUrl + route, {
         method,
@@ -156,6 +167,12 @@ test('session API saves sanitized gaze and acoustic summaries without raw sample
     delete require.cache[serverPath];
     if (priorDataDir === undefined) delete process.env.NEBRAS_DATA_DIR;
     else process.env.NEBRAS_DATA_DIR = priorDataDir;
+    if (priorOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = priorOpenAiKey;
+    if (priorTimestampModel === undefined) delete process.env.OPENAI_WORD_TIMESTAMP_MODEL;
+    else process.env.OPENAI_WORD_TIMESTAMP_MODEL = priorTimestampModel;
+    if (priorTimestampSetting === undefined) delete process.env.OPENAI_ENABLE_WORD_TIMESTAMPS;
+    else process.env.OPENAI_ENABLE_WORD_TIMESTAMPS = priorTimestampSetting;
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
