@@ -32,6 +32,7 @@ test('finds likely substitution, deletion and repeated-word differences in Arabi
   assert.equal(result.wordErrorRate, 0.375);
   assert.ok(result.operations.some(op => op.type === 'deletion' && op.targetWord === 'إلى'));
   assert.ok(result.operations.some(op => op.type === 'repetition' && op.spokenWord === 'ثم'));
+  assert.equal(result.operations.find(op => op.type === 'repetition').targetWord, 'ثم');
   assert.ok(result.operations.some(op => op.type === 'substitution' && op.targetWord === 'البيت' && op.spokenWord === 'المنزل'));
 });
 
