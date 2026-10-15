@@ -785,7 +785,7 @@
       const analysisControls = segment.audioUrl && segment.mode === 'oral'
         ? (window.NEBRAS_DEMO_MODE
           ? '<div class="asr-consent-panel"><span class="badge-info">تحليل الصوت غير متاح في Pages</span><p class="text-muted">يمكنك تجربة التقييم وحفظ تقريره على هذا المتصفح. تفريغ الصوت الآلي يتطلب تشغيل الخادم مع إعداد مفتاح API؛ لن يُرسل هذا التسجيل من صفحة Pages.</p></div>'
-          : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي. سيُحفظ نص التفريغ وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
+          : '<div class="asr-consent-panel"><label><input type="checkbox" id="asr-consent-' + index + '" onchange="window.assessmentManager.setAudioAnalysisConsent(' + index + ', this.checked)"> أملك الإذن اللازم وأوافق على إرسال هذا التسجيل إلى خدمة OpenAI للتفريغ الصوتي، وإجراء تمرير إضافي اختياري لتوقيت الكلمات عند تفعيله. قد يترتب على التمرير الإضافي استخدام API إضافي. سيُحفظ نص التفريغ والتوقيتات المتفق عليها وملخص المقارنة في ملف بيانات نَبراس على الخادم، وقد يخضع الصوت لمعالجة مزوّد الخدمة وسياساته.</label><button class="btn btn-primary btn-sm" id="asr-run-' + index + '" onclick="window.assessmentManager.analyzeRecordedPassage(' + index + ')" disabled>تحليل القراءة آليًا</button><div id="asr-output-' + index + '" class="asr-result" aria-live="polite"></div><p class="text-muted">يتطلب تشغيل هذه الميزة ضبط OPENAI_API_KEY على الخادم. جميع الفروق اقتراحات من التفريغ، وتحتاج إلى مراجعة التسجيل.</p></div>')
         : '';
       const acoustic = segment.acousticAnalysis || {};
       const formatAudioTime = seconds => {
@@ -940,8 +940,9 @@
     const operations = alignment && Array.isArray(alignment.operations) ? alignment.operations : [];
     const offsetMs = Math.max(0, Number(segment && segment.audioOffsetSeconds) || 0) * 1000;
     return operations.filter(operation => operation.type !== 'match').slice(0, 80).map(operation => {
-      const timestamp = timestamps.find(item =>
-        Number(item.transcriptIndex) === Number(operation.transcriptIndex) &&
+      const operationTranscriptIndex = operation.transcriptIndex == null ? null : Number(operation.transcriptIndex);
+      const timestamp = operationTranscriptIndex === null ? null : timestamps.find(item =>
+        Number(item.transcriptIndex) === operationTranscriptIndex &&
         item.timingQuality === 'cross-model-agreement' &&
         Number.isFinite(Number(item.startSeconds)) &&
         Number.isFinite(Number(item.endSeconds)) &&
@@ -950,7 +951,7 @@
       const base = {
         type: operation.type,
         targetIndex: Number.isInteger(Number(operation.targetIndex)) ? Number(operation.targetIndex) : null,
-        transcriptIndex: Number.isInteger(Number(operation.transcriptIndex)) ? Number(operation.transcriptIndex) : null,
+        transcriptIndex: operation.transcriptIndex != null && Number.isInteger(Number(operation.transcriptIndex)) ? Number(operation.transcriptIndex) : null,
         timingAvailable: false,
         quality: 'insufficient',
         audioStartSeconds: null,
@@ -1038,10 +1039,11 @@
           ? '<span class="asr-gaze-context">إشارة نظر مجمعة لهذه الكلمة: ' + Math.round(Number(gazeAtWord.totalDwellMs) || 0) +
             ' ms عبر ' + (Number(gazeAtWord.visitCount) || 0) + ' زيارات. هذا وحده لا يثبت سبب الاختلاف.</span>'
           : '';
-        const timedWord = (Array.isArray(analysis.wordTimestamps) ? analysis.wordTimestamps : []).find(word =>
-          Number(word.transcriptIndex) === Number(item.transcriptIndex) &&
-          word.timingQuality === 'cross-model-agreement'
-        );
+        const timedWord = item.transcriptIndex == null ? null :
+          (Array.isArray(analysis.wordTimestamps) ? analysis.wordTimestamps : []).find(word =>
+            Number(word.transcriptIndex) === Number(item.transcriptIndex) &&
+            word.timingQuality === 'cross-model-agreement'
+          );
         const temporal = speechGazeContext.find(context =>
           Number(context.targetIndex) === Number(item.targetIndex) &&
           Number(context.transcriptIndex) === Number(item.transcriptIndex) &&
