@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { alignReadingTranscript } = require('./lib/reading-alignment');
+const { alignReadingTranscript, alignTimedTranscriptToReference } = require('./lib/reading-alignment');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -53,7 +53,8 @@ app.get('/api/health', (req, res) => {
     version: '1.2.0',
     mode: 'prototype',
     automaticSpeechAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY),
-    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
+    wordTimestampsEnabled: process.env.ENABLE_WORD_TIMESTAMPS !== 'false',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -310,13 +311,16 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
     'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/flac': 'flac',
     'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a'
   };
-  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe';
+  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe';
+  const timestampPassEnabled = process.env.ENABLE_WORD_TIMESTAMPS !== 'false';
 
   try {
     const form = new FormData();
     form.append('file', new Blob([req.body], { type: requestedType }), 'reading.' + extensionByType[requestedType]);
     form.append('model', model);
-    form.append('language', 'ar');
+    // GPT-Transcribe accepts a list of expected languages. Older models use the singular language field.
+    if (model === 'gpt-transcribe') form.append('languages[]', 'ar');
+    else form.append('language', 'ar');
     form.append('response_format', 'json');
 
     const providerResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -343,12 +347,65 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
       return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ مع النص.' });
     }
 
+    // GPT-Transcribe returns text without word timings. A separate Whisper-1 pass
+    // is used for timestamps only; failure of this optional pass never discards the
+    // primary transcript or invents timestamps.
+    let timedWords = [];
+    let timedAlignment = null;
+    let timestampWarning = null;
+    let timestampModel = null;
+    let crossModelWordErrorRate = null;
+    if (timestampPassEnabled) {
+      try {
+        const timestampForm = new FormData();
+        timestampForm.append('file', new Blob([req.body], { type: requestedType }), 'reading.' + extensionByType[requestedType]);
+        timestampForm.append('model', 'whisper-1');
+        timestampForm.append('language', 'ar');
+        timestampForm.append('response_format', 'verbose_json');
+        timestampForm.append('timestamp_granularities[]', 'word');
+
+        const timestampResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY },
+          body: timestampForm,
+          signal: AbortSignal.timeout(120_000)
+        });
+        const timestampBody = await timestampResponse.json().catch(() => ({}));
+        if (timestampResponse.ok && Array.isArray(timestampBody.words)) {
+          timedWords = timestampBody.words.slice(0, 1200).map(item => ({
+            word: typeof item.word === 'string' ? item.word : '',
+            start: Number(item.start),
+            end: Number(item.end)
+          })).filter(item => item.word && Number.isFinite(item.start) && Number.isFinite(item.end) &&
+            item.start >= 0 && item.end >= item.start && item.end <= 1800);
+          timedAlignment = alignTimedTranscriptToReference(referenceText, timedWords);
+          timestampModel = 'whisper-1';
+          if (typeof timestampBody.text === 'string' && timestampBody.text.trim()) {
+            crossModelWordErrorRate = alignReadingTranscript(transcript, timestampBody.text).wordErrorRate;
+          }
+          if (!timedWords.length) timestampWarning = 'لم يُرجع مرور التوقيت كلمات مؤقتة صالحة.';
+        } else {
+          timestampWarning = timestampResponse.status === 429
+            ? 'تعذر استخراج توقيتات الكلمات بسبب حد الاستخدام؛ التفريغ الأساسي متاح.'
+            : 'تعذر استخراج توقيتات الكلمات؛ التفريغ الأساسي متاح دون مزامنة دقيقة مع النظر.';
+          console.warn('Word timestamp pass returned status', timestampResponse.status);
+        }
+      } catch (timestampError) {
+        timestampWarning = 'تعذر استخراج توقيتات الكلمات؛ التفريغ الأساسي متاح دون مزامنة دقيقة مع النظر.';
+        console.warn('Word timestamp pass failed:', timestampError && timestampError.message ? timestampError.message : 'unknown error');
+      }
+    }
+
     return res.json({
       transcript: transcript,
       model: model,
       language: 'ar',
       alignment: alignment,
-      caveat: 'هذه مقارنة آلية بين النص المرجعي وتفريغ الكلام؛ قد تكون الفروق ناتجة عن خطأ التعرف الصوتي، ويجب مراجعتها مع التسجيل والمعلم.'
+      timestampModel: timestampModel,
+      timedAlignment: timedAlignment,
+      timestampWarning: timestampWarning,
+      crossModelWordErrorRate: crossModelWordErrorRate,
+      caveat: 'هذه مقارنة آلية بين النص المرجعي وتفريغ الكلام؛ قد تكون الفروق ناتجة عن خطأ التعرف الصوتي. توقيتات الكلمات مستخرجة من مرور تعرف منفصل وقد تختلف عن التفريغ الأساسي. راجع التسجيل قبل اعتماد أي ملاحظة.'
     });
   } catch (error) {
     const timedOut = error && (error.name === 'TimeoutError' || error.name === 'AbortError');
