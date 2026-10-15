@@ -38,6 +38,8 @@
         Number(segment.durationSeconds) > 0 && Number.isFinite(Number(segment.wordCount)) &&
         Number(segment.wordCount) > 0;
     });
+    const modes = new Set(valid.map(function (segment) { return segment.mode; }).filter(Boolean));
+    const comparableMode = modes.size <= 1;
     const durationSeconds = valid.reduce(function (sum, segment) {
       return sum + Number(segment.durationSeconds);
     }, 0);
@@ -57,7 +59,8 @@
       segmentCount: valid.length,
       durationSeconds: Math.round(durationSeconds * 100) / 100,
       wordCount: wordCount,
-      wpm: calculateObservedWpm(wordCount, durationSeconds),
+      wpm: comparableMode ? calculateObservedWpm(wordCount, durationSeconds) : null,
+      comparableMode: comparableMode,
       teacherMarkedErrors: totalErrors,
       omissions: omissions,
       selfCorrections: selfCorrections
