@@ -46,3 +46,13 @@ test('handles missing or invalid input without producing speed figures', () => {
   assert.equal(invalidDuration.wpm, null);
   assert.equal(invalidDuration.level, 'insufficient');
 });
+
+test('uses observed timestamps instead of assuming a 30fps camera rate', () => {
+  const engine = new EyeMetricsEngine();
+  const fixation = engine.aggregateFixation([
+    { t: 100, x: 40, y: 30 },
+    { t: 120, x: 41, y: 30 },
+    { t: 140, x: 42, y: 31 }
+  ]);
+  assert.equal(fixation.durationMs, 40);
+});
