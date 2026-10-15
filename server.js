@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { alignReadingTranscript } = require('./lib/reading-alignment');
+const { alignReadingTranscript, alignTimedWordsToTranscript } = require('./lib/reading-alignment');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -56,6 +56,8 @@ app.get('/api/health', (req, res) => {
     wordLevelGazeSummaryEnabled: true,
     independentCalibrationValidationEnabled: true,
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
+    wordTimestampAnalysisEnabled: process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
+    wordTimestampModel: process.env.OPENAI_WORD_TIMESTAMP_MODEL || 'whisper-1',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -417,12 +419,65 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
       return res.status(422).json({ error: error.message || 'تعذر محاذاة التفريغ مع النص.' });
     }
 
+    let wordTimestamps = [];
+    let timestampAlignment = {
+      enabled: process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
+      model: process.env.OPENAI_WORD_TIMESTAMP_MODEL || 'whisper-1',
+      quality: 'unavailable',
+      transcriptWordCount: (transcript.match(/[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu) || []).length,
+      timestampWordCount: 0,
+      matchedWordCount: 0,
+      coveragePercent: 0,
+      note: 'لم تتوفر توقيتات كلمات مؤكدة عبر مطابقة المحركين.'
+    };
+    if (timestampAlignment.enabled) {
+      try {
+        const timestampForm = new FormData();
+        timestampForm.append('file', new Blob([req.body], { type: requestedType }), 'reading.' + extensionByType[requestedType]);
+        timestampForm.append('model', timestampAlignment.model);
+        timestampForm.append('language', 'ar');
+        timestampForm.append('response_format', 'verbose_json');
+        timestampForm.append('timestamp_granularities[]', 'word');
+        const timestampResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + process.env.OPENAI_API_KEY },
+          body: timestampForm,
+          signal: AbortSignal.timeout(60_000)
+        });
+        const timestampBody = await timestampResponse.json().catch(() => ({}));
+        if (timestampResponse.ok && Array.isArray(timestampBody.words)) {
+          const timestampResult = alignTimedWordsToTranscript(transcript, timestampBody.words);
+          wordTimestamps = timestampResult.words;
+          timestampAlignment = Object.assign(timestampAlignment, {
+            quality: timestampResult.quality,
+            transcriptWordCount: timestampResult.transcriptWordCount,
+            timestampWordCount: timestampResult.timestampWordCount,
+            matchedWordCount: timestampResult.matchedWordCount,
+            coveragePercent: timestampResult.coveragePercent,
+            note: 'التوقيت محفوظ فقط للكلمات التي اتفق عليها التفريغ الأساسي وتمرير التوقيت المستقل؛ قد تظل حدود الكلمة تقريبية.'
+          });
+        } else {
+          console.warn('Word timestamp pass unavailable:', timestampResponse.status);
+          timestampAlignment.note = timestampResponse.ok
+            ? 'لم يرجع تمرير التوقيت قائمة كلمات مفصلة.'
+            : 'فشل تمرير توقيت الكلمات؛ بقي التفريغ الأساسي متاحًا.';
+        }
+      } catch (timestampError) {
+        console.warn('Word timestamp pass unavailable:', timestampError && timestampError.message ? timestampError.message : 'unknown error');
+        timestampAlignment.note = 'تعذر إكمال تمرير التوقيت؛ بقي التفريغ الأساسي متاحًا دون توقيت كلمات.';
+      }
+    } else {
+      timestampAlignment.note = 'تم تعطيل تمرير توقيت الكلمات عبر OPENAI_ENABLE_WORD_TIMESTAMPS=false.';
+    }
+
     return res.json({
       transcript: transcript,
       model: model,
       language: 'ar',
       alignment: alignment,
-      caveat: 'هذه مقارنة آلية بين النص المرجعي وتفريغ الكلام؛ قد تكون الفروق ناتجة عن خطأ التعرف الصوتي، ويجب مراجعتها مع التسجيل والمعلم.'
+      wordTimestamps: wordTimestamps,
+      timestampAlignment: timestampAlignment,
+      caveat: 'هذه مقارنة آلية بين النص المرجعي وتفريغ الكلام؛ قد تكون الفروق ناتجة عن خطأ التعرف الصوتي، ويجب مراجعتها مع التسجيل والمعلم. التوقيتات لا تُعرض إلا للكلمات التي اتفق عليها التفريغ الأساسي وتمرير التوقيت المستقل.'
     });
   } catch (error) {
     const timedOut = error && (error.name === 'TimeoutError' || error.name === 'AbortError');
