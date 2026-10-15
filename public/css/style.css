@@ -1100,3 +1100,28 @@ a { color: inherit; }
 .heat-medium { background: rgba(234, 187, 79, .62); }
 .heat-high { background: rgba(220, 105, 82, .67); }
 .reading-gaze-wordmap .text-muted { margin-top: 8px; font-size: 9px; line-height: 1.85; }
+
+
+/* Temporal transcript / gaze evidence inside the oral reading review */
+.asr-timestamp-summary {
+  margin: 9px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #dfe8e2;
+  border-radius: 8px;
+  background: #f7faf8;
+  color: #536a5f;
+  font-size: 10px;
+  line-height: 1.85;
+}
+.asr-word-timing {
+  display: block;
+  margin-top: 6px;
+  color: #65766d;
+  font-size: 9px;
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+.asr-difference > .btn {
+  align-self: flex-start;
+  margin-top: 3px;
+}
