@@ -121,6 +121,12 @@ test('camera initialization no longer blocks rendering the camera/status screen'
   assert.match(baseSource, /onCameraStatusChange/);
 });
 
+test('WebGazer uses an available pinned MediaPipe asset path and distinguishes tracking failure from camera failure', () => {
+  assert.match(trackerSource, /faceMeshSolutionPath\s*=\s*['"]https:\/\/cdn\.jsdelivr\.net\/npm\/@mediapipe\/face_mesh@0\.4\.1633559619['"]/);
+  assert.match(trackerSource, /status: cameraActive \? 'tracking_error' : 'error'/);
+  assert.match(baseSource, /state\.status === 'tracking_error'/);
+});
+
 test('uncalibrated gaze estimates cannot create a report heatmap', () => {
   assert.match(enhancementSource, /wordGaze\.quality === 'observed' && segment\.hasValidGaze === true/);
   assert.match(enhancementSource, /المعايرة لم تجتز التحقق التقني الأولي/);
