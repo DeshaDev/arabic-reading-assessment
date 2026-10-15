@@ -1,11 +1,24 @@
 (function (root) {
   'use strict';
 
+  function tokenizeArabicWords(text) {
+    const source = String(text || '').normalize('NFC');
+    const pattern = /[\p{L}\p{N}][\p{L}\p{N}\u064B-\u065F\u0670\u06D6-\u06ED]*/gu;
+    const tokens = [];
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      tokens.push({
+        word: match[0],
+        index: tokens.length,
+        start: match.index,
+        end: pattern.lastIndex
+      });
+    }
+    return tokens;
+  }
+
   function countArabicWords(text) {
-    const plain = String(text || '')
-      .normalize('NFC')
-      .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, '');
-    return (plain.match(/[\p{L}\p{N}]+/gu) || []).length;
+    return tokenizeArabicWords(text).length;
   }
 
   function calculateObservedWpm(wordCount, durationSeconds, options) {
@@ -338,7 +351,7 @@
     };
   }
 
-  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, summarizeLowEnergyFrames, summarizeGazeDuringSpeechInterval, WORD_MARK_TYPES };
+  const api = { tokenizeArabicWords, countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, summarizeWordGaze, assessCalibrationValidation, summarizeLowEnergyFrames, summarizeGazeDuringSpeechInterval, WORD_MARK_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.ReadingAssessmentProtocol = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
