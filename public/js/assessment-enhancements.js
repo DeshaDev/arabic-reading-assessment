@@ -30,6 +30,8 @@
     this.secondReadingMode = secondReadingMode || (Number(student.grade) <= 2 ? 'oral' : 'silent');
     this.readingSegments = [];
     this.calibrationCompleted = false;
+    this.allowUncalibratedGaze = false;
+    this.currentHighlightedGazeWord = null;
     this.calibrationValidation = null;
     this.calibrationMeasurements = [];
     this.gazeWordBoxes = [];
@@ -159,18 +161,20 @@
 
   proto.skipCalibration = function () {
     this.calibrationCompleted = false;
-    this.startRapidNaming();
+    this.allowUncalibratedGaze = true;
+    this.startReading('oral', 0);
   };
 
   proto.startCalibration = async function () {
+    this.allowUncalibratedGaze = false;
     if (!this.tracker.isStreaming || !this.tracker.isCameraActive()) {
       const container = document.getElementById('assessment-container');
-      if (container) container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص الكاميرا أو أكمل مهام القراءة دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون معايرة</button></div></div>';
+      if (container) container.innerHTML = '<div class="assessment-card fade-in"><h2>الكاميرا غير جاهزة للمعايرة</h2><p>أعد فحص الكاميرا أو أكمل مهام القراءة دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.retryCamera()">إعادة فحص الكاميرا</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button></div></div>';
       return;
     }
     this.stage = 'calibration';
     const container = document.getElementById('assessment-container');
-    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">المتابعة دون معايرة</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة وانقر ثلاث مرات في كل نقطة لتدريب المتتبع، ثم اتبع نقاط تحقق مستقلة بعينيك دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 5 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
+    container.innerHTML = '<div class="calibration-stage fade-in" id="calib-stage"><button class="btn btn-outline btn-sm" style="position:absolute;top:18px;left:18px;z-index:10002;background:#fff" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button><div class="calib-instructions"><h3>معايرة اتجاه النظر</h3><p>انظر إلى النجمة وانقر ثلاث مرات في كل نقطة لتدريب المتتبع، ثم اتبع نقاط تحقق مستقلة بعينيك دون نقر. لا يمثل هذا الاختبار تحققًا علميًا أو اعتمادًا تشخيصيًا.</p><p id="calib-step-hint">النقطة 1 من 5 · المركز</p></div><div class="calib-target" id="calib-target"><span>✦</span><span class="calib-target-counter" id="star-count">0/3</span></div></div>';
     this.tracker.resetCalibration();
     const points = [
       { name: 'المركز', x: 0.50, y: 0.50 }, { name: 'أعلى اليمين', x: 0.84, y: 0.22 },
@@ -233,7 +237,7 @@
     if (this.stage !== 'calibration') return;
     if (!this.tracker.computeCalibration()) {
       this.stage = 'env_check';
-      container.innerHTML = '<div class="assessment-card"><h2>لم تكتمل خطوات المعايرة</h2><p>أعد المحاولة أو تابع المهام دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المحاولة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون تتبع</button></div></div>';
+      container.innerHTML = '<div class="assessment-card"><h2>لم تكتمل خطوات المعايرة</h2><p>أعد المحاولة أو تابع المهام دون مؤشرات النظر.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المحاولة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button></div></div>';
       return;
     }
     if (hint) hint.textContent = 'تم تسجيل نقاط التدريب. يبدأ الآن فحص مستقل لجودة تقدير النظر؛ اتبع النجمة بعينيك دون النقر.';
@@ -243,13 +247,13 @@
     this.calibrationCompleted = validationPassed;
     if (!validationPassed) {
       const validation = this.calibrationValidation || {};
-      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم تجتز إشارة النظر التحقق التقني الأولي</h2><p>رغم تسجيل نقرات المعايرة، لم تكن مطابقة اتجاه النظر لنقاط التحقق كافية. لذلك لن نعرض تحليلات النظر على مستوى الكلمات باعتبارها موثوقة في هذه الجلسة.</p><div class="diagnostic-alert-banner"><strong>نتيجة التحقق:</strong> عينات صالحة في ' + (validation.validTargetCount || 0) + ' من ' + (validation.validationTargetCount || 5) + ' نقاط · الخطأ الوسيط المقدر: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + ' · حد تقني داخلي تجريبي: ' + (validation.tolerancePx || '—') + ' بكسل.</div><p class="text-muted">هذا الحد فحص جودة هندسي داخلي غير معتمد علميًا؛ فشل الفحص لا يعني وجود مشكلة لدى الطفل.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة دون مؤشرات النظر</button></div></div>';
+      container.innerHTML = '<div class="assessment-card fade-in"><h2>لم تجتز إشارة النظر التحقق التقني الأولي</h2><p>رغم تسجيل نقرات المعايرة، لم تكن مطابقة اتجاه النظر لنقاط التحقق كافية. لذلك لن نعرض تحليلات النظر على مستوى الكلمات باعتبارها موثوقة في هذه الجلسة.</p><div class="diagnostic-alert-banner"><strong>نتيجة التحقق:</strong> عينات صالحة في ' + (validation.validTargetCount || 0) + ' من ' + (validation.validationTargetCount || 5) + ' نقاط · الخطأ الوسيط المقدر: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + ' · حد تقني داخلي تجريبي: ' + (validation.tolerancePx || '—') + ' بكسل.</div><p class="text-muted">هذا الحد فحص جودة هندسي داخلي غير معتمد علميًا؛ فشل الفحص لا يعني وجود مشكلة لدى الطفل.</p><div class="actions"><button class="btn btn-primary" onclick="window.assessmentManager.startCalibration()">إعادة المعايرة</button><button class="btn btn-outline" onclick="window.assessmentManager.skipCalibration()">المتابعة للقراءة الآن (تقدير النظر غير معاير)</button></div></div>';
       const failedIndicator = document.getElementById('ind-calibration');
       if (failedIndicator) failedIndicator.innerHTML = '<span class="dot"></span>إشارة النظر: غير كافية';
       return;
     }
     const validation = this.calibrationValidation || {};
-    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت إشارة النظر التحقق التقني الأولي</h2><p>الخطأ الوسيط المقدر في نقاط التحقق المستقلة: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + '. سيجري الآن ربط عينات النظر بالكلمات الظاهرة أثناء القراءة.</p><p class="text-muted">هذا فحص جودة داخلي وليس قياس دقة معتمدًا؛ تظل البيانات وصفية وتتأثر بالكاميرا والإضاءة وحركة الرأس.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startRapidNaming()">الانتقال إلى تسمية الحروف</button></div></div>';
+    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت إشارة النظر التحقق التقني الأولي</h2><p>الخطأ الوسيط المقدر في نقاط التحقق المستقلة: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + '. سيجري الآن ربط عينات النظر بالكلمات الظاهرة أثناء القراءة.</p><p class="text-muted">هذا فحص جودة داخلي وليس قياس دقة معتمدًا؛ تظل البيانات وصفية وتتأثر بالكاميرا والإضاءة وحركة الرأس.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startReading('oral', 0)">ابدأ القراءة مع تتبع النظر</button></div></div>';
     const indicator = document.getElementById('ind-calibration');
     if (indicator) indicator.innerHTML = '<span class="dot"></span>إشارة النظر: اجتازت تحققًا تقنيًا أوليًا';
   };
@@ -300,8 +304,8 @@
     container.innerHTML = '<div class="reading-stage fade-in"><div class="step-indicator">الخطوة ' + (index === 0 ? '3' : '6') + ' من 7 · ' + wrapperMode +
       '</div><div class="reading-header"><div class="title">' + this.escapeHtml(this.currentText.title) + '</div><span class="badge-info">' + wrapperMode +
       '</span><div class="timer" id="reading-timer-display">00:00</div></div><div class="reading-canvas-wrapper" id="reading-wrapper"><div class="arabic-text-content" id="arabic-text-view">' +
-      this.renderGazeTargetText(this.currentText.content) + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة؛ لا توجد مهلة زمنية للانتهاء.</div>' +
-      (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in"> تسجيل محلي اختياري للصوت. لن يُرسل للتحليل الآلي إلا بموافقة منفصلة في شاشة النتائج</label></div>' : '') +
+      this.renderGazeTargetText(this.currentText.content) + '</div><canvas id="live-gaze-canvas" class="gaze-overlay-canvas"></canvas></div><div id="live-gaze-readout" class="gaze-live-readout" role="status" aria-live="polite">بانتظار بدء القراءة وإشارة النظر…</div><div class="reading-footer-hint">اقرأ النص مرة واحدة وبوتيرتك المعتادة. المؤشر تقديري ويتأثر بالكاميرا والإضاءة وحركة الرأس.</div>' +
+      (this.currentReadingMode === 'oral' ? '<div class="audio-consent-row"><label><input type="checkbox" id="record-audio-opt-in" checked> تسجيل الصوت محليًا أثناء القراءة (مفعّل). أزل العلامة لإيقاف التسجيل؛ يتطلب إذن الميكروفون من المتصفح.</label></div>' : '') +
       '<div class="teacher-marking-grid"><div class="form-group"><label for="segment-errors">أخطاء إضافية غير محددة على الكلمات</label><input id="segment-errors" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-omissions">حذف إضافي غير محدد</label><input id="segment-omissions" type="number" min="0" max="200" value="0"></div><div class="form-group"><label for="segment-corrections">تصحيحات ذاتية إضافية</label><input id="segment-corrections" type="number" min="0" max="200" value="0"></div></div>' +
       '<p class="text-muted">هذه ملاحظات يدوية إضافية. يمكن للنظام تحليل التسجيل اختياريًا بعد انتهاء الجلسة، وتظل الفروق الآلية بحاجة إلى مراجعة.</p><div id="audio-recording-status" class="text-muted" role="status"></div><div class="actions"><button class="btn btn-primary btn-lg" id="reading-start-btn" onclick="window.assessmentManager.beginReadingSegment()">ابدأ القراءة</button><button class="btn btn-success btn-lg" id="reading-finish-btn" disabled onclick="window.assessmentManager.finishReadingSegment()">أنهيت القراءة</button></div></div>';
     const wrapper = document.getElementById('reading-wrapper');
@@ -312,15 +316,34 @@
     this.gazeWordBoxes = Array.from(wrapper.querySelectorAll('[data-gaze-word-index]')).map(element => ({
       wordIndex: Number(element.dataset.gazeWordIndex),
       element: element,
-      rect: element.getBoundingClientRect()
+      wordText: element.textContent || '',
+      rect: element.getBoundingClientRect(),
+      lineNumber: null
     }));
+    // Derive line numbers from the actual rendered positions of words.
+    const rows = [];
+    this.gazeWordBoxes.slice().sort((a, b) => a.rect.top - b.rect.top).forEach(item => {
+      let row = rows.find(candidate => Math.abs(candidate.top - item.rect.top) <= Math.max(8, item.rect.height * 0.45));
+      if (!row) {
+        row = { top: item.rect.top, items: [] };
+        rows.push(row);
+      }
+      row.items.push(item);
+      row.top = row.items.reduce((sum, entry) => sum + entry.rect.top, 0) / row.items.length;
+    });
+    rows.sort((a, b) => a.top - b.top).forEach((row, rowIndex) => row.items.forEach(item => { item.lineNumber = rowIndex + 1; }));
+    this.currentHighlightedGazeWord = null;
+    const gazeReadout = document.getElementById('live-gaze-readout');
+    if (gazeReadout) gazeReadout.textContent = this.calibrationCompleted
+      ? 'التتبع مُعاير تقنيًا مبدئيًا؛ ابدأ القراءة لرؤية الكلمة والسطر المقدّرين.'
+      : 'التتبع غير مُعاير؛ ستظهر تقديرات تقريبية فقط ولا تصلح للحكم على صعوبة القراءة.';
     this.tracker.onGazePoint = gaze => {
       if (!this.segmentActive || this.stage !== 'reading') return;
       const rect = wrapper.getBoundingClientRect();
       const x = Math.max(4, Math.min(wrapper.clientWidth - 4, gaze.x - rect.left));
       const y = Math.max(4, Math.min(wrapper.clientHeight - 4, gaze.y - rect.top));
       let wordIndex = null;
-      if (this.calibrationCompleted && gaze.x >= rect.left && gaze.x <= rect.right && gaze.y >= rect.top && gaze.y <= rect.bottom) {
+      if ((this.calibrationCompleted || this.allowUncalibratedGaze) && gaze.x >= rect.left && gaze.x <= rect.right && gaze.y >= rect.top && gaze.y <= rect.bottom) {
         const hit = document.elementFromPoint(gaze.x, gaze.y);
         const directWord = hit && hit.closest ? hit.closest('[data-gaze-word-index]') : null;
         if (directWord && wrapper.contains(directWord)) {
@@ -341,6 +364,21 @@
           }
           if (closest && closestDistance <= 32) wordIndex = closest.wordIndex;
         }
+      }
+      const gazeReadout = document.getElementById('live-gaze-readout');
+      const wordItem = wordIndex == null ? null : this.gazeWordBoxes.find(item => item.wordIndex === wordIndex);
+      if (this.currentHighlightedGazeWord && (!wordItem || this.currentHighlightedGazeWord !== wordItem.element)) {
+        this.currentHighlightedGazeWord.classList.remove('is-current-gaze');
+        this.currentHighlightedGazeWord = null;
+      }
+      if (wordItem) {
+        if (this.currentHighlightedGazeWord !== wordItem.element) {
+          wordItem.element.classList.add('is-current-gaze');
+          this.currentHighlightedGazeWord = wordItem.element;
+        }
+        if (gazeReadout) gazeReadout.textContent = (this.calibrationCompleted ? 'النظر المقدّر: ' : 'تقدير غير مُعاير: ') + '«' + wordItem.wordText + '» · السطر ' + wordItem.lineNumber + ' من ' + Math.max(1, ...this.gazeWordBoxes.map(item => item.lineNumber || 1)) + (this.calibrationCompleted ? '' : ' · ثقة غير معتمدة');
+      } else if (gazeReadout && this.calibrationCompleted) {
+        gazeReadout.textContent = 'إشارة النظر خارج النص أو بين الكلمات؛ لم تُربط بكلمة.';
       }
       if (this.currentSegmentSamples.length < 20000) {
         const observedTime = Number(gaze.t) || performance.now();
