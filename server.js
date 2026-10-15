@@ -565,7 +565,7 @@ app.patch('/api/sessions/:id/reading-analysis', (req, res) => {
     const mappedGazeSampleCount = Math.min(gazeSampleCount, clampInt(item && item.mappedGazeSampleCount, 20000));
     const targetWordSampleCount = Math.min(mappedGazeSampleCount, clampInt(item && item.targetWordSampleCount, 20000));
     if (!type || !Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= alignment.referenceWordCount ||
-        !Number.isInteger(transcriptIndex) || transcriptIndex < 0 || transcriptIndex >= alignment.transcriptWordCount ||
+        item.transcriptIndex == null || !Number.isInteger(transcriptIndex) || transcriptIndex < 0 || transcriptIndex >= alignment.transcriptWordCount ||
         items.some(existing => existing.targetIndex === targetIndex && existing.transcriptIndex === transcriptIndex) ||
         item.timingAvailable !== true || !Number.isFinite(audioStartSeconds) || !Number.isFinite(audioEndSeconds) ||
         audioStartSeconds < 0 || audioEndSeconds <= audioStartSeconds || audioEndSeconds > 3600) return items;
