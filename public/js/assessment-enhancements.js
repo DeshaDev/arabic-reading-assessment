@@ -445,9 +445,10 @@
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, mode: segment.mode, errors: segment.errors,
       omissions: segment.omissions, selfCorrections: segment.selfCorrections
     })));
-    const allSamples = this.readingSegments.flatMap(segment => segment.gazeSamples || []);
+    const validGazeSegments = this.readingSegments.filter(segment => segment.hasValidGaze);
+    const allSamples = validGazeSegments.flatMap(segment => segment.gazeSamples || []);
     const combinedMetrics = this.metricsEngine.processGazeStream(allSamples);
-    const hasValidGaze = this.readingSegments.some(segment => segment.hasValidGaze);
+    const hasValidGaze = validGazeSegments.length > 0;
     const firstAnswers = this.comprehensionAnswers[0] || [];
     const secondAnswers = this.comprehensionAnswers[1] || [];
     const firstCorrect = firstAnswers.filter(answer => answer.isCorrect).length;
