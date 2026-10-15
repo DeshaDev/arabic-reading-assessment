@@ -212,6 +212,67 @@ class DashboardModule {
     setTimeout(function () { window.assessmentManager.startSession(student, text); }, 100);
   }
 
+  renderStudentProgress(sessions) {
+    const ordered = sessions.slice().sort(function (a, b) {
+      return new Date(a.date || 0) - new Date(b.date || 0);
+    }).slice(-8);
+    if (!ordered.length) return '<section class="progress-panel"><h3>التقدم عبر الجلسات</h3><p class="text-muted">ستظهر الرسوم بعد تسجيل جلسات.</p></section>';
+
+    const observations = ordered.map(function (session, index) {
+      const total = Number(session.comprehensionTotal) || 0;
+      const score = Number(session.comprehensionScore) || 0;
+      return total > 0 ? { index: index, percent: Math.round(score / total * 100), score: score, total: total, date: session.date } : null;
+    }).filter(Boolean);
+    const w = 520, h = 185, left = 34, right = 18, top = 15, bottom = 28;
+    const pw = w - left - right, ph = h - top - bottom;
+    let grid = '';
+    [0, 50, 100].forEach(function (value) {
+      const y = top + ph - value / 100 * ph;
+      grid += '<line x1="' + left + '" y1="' + y + '" x2="' + (w-right) + '" y2="' + y + '" stroke="#eaf0ed" stroke-dasharray="3 5"/><text x="' + (left-7) + '" y="' + (y+3) + '" text-anchor="end" font-size="9" fill="#91a09f">' + value + '%</text>';
+    });
+    const pts = observations.map(function (p, i) {
+      return Object.assign({}, p, {
+        x: left + (observations.length <= 1 ? pw / 2 : i * pw / (observations.length - 1)),
+        y: top + ph - p.percent / 100 * ph
+      });
+    });
+    const path = pts.map(function (p, i) { return (i ? 'L ' : 'M ') + p.x.toFixed(1) + ' ' + p.y.toFixed(1); }).join(' ');
+    const dots = pts.map(function (p, i) {
+      return '<circle cx="' + p.x + '" cy="' + p.y + '" r="4.5" fill="#248d7c" stroke="#fff" stroke-width="2"><title>' +
+        this.escape(this.formatDate(p.date)) + ': ' + p.score + '/' + p.total + '</title></circle><text x="' + p.x + '" y="' + (h-7) + '" text-anchor="middle" font-size="9" fill="#7f9192">' + (i+1) + '</text>';
+    }, this).join('');
+    const comprehensionSvg = pts.length
+      ? '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="نسبة إجابات الفهم عبر الجلسات">' + grid + (pts.length > 1 ? '<path d="' + path + '" fill="none" stroke="#248d7c" stroke-width="2.5" stroke-linecap="round"/>' : '') + dots + '</svg>'
+      : '<div class="chart-empty">لا توجد إجابات فهم صالحة للرسم في الجلسات المحفوظة.</div>';
+
+    const speedPoints = [];
+    ordered.forEach(function (session, sessionIndex) {
+      (Array.isArray(session.readingSegments) ? session.readingSegments : []).forEach(function (segment) {
+        if (segment.mode !== 'oral' && segment.mode !== 'silent') return;
+        const speed = window.ReadingAssessmentProtocol.calculateObservedWpm(segment.wordCount, segment.durationSeconds);
+        if (speed === null) return;
+        const x = left + (ordered.length <= 1 ? pw / 2 : sessionIndex * pw / (ordered.length - 1));
+        const y = top + ph - speed / 240 * ph;
+        const color = segment.mode === 'oral' ? '#248d7c' : '#6c83b9';
+        speedPoints.push('<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="' + color + '" stroke="#fff" stroke-width="2"><title>' +
+          this.escape(this.formatDate(session.date)) + ' · ' + this.escape(segment.passageTitle || 'مقطع') + ' · ' +
+          (segment.mode === 'oral' ? 'جهرية' : 'صامتة') + ': ' + speed + ' كلمة/دقيقة</title></circle>');
+      }, this);
+    }, this);
+    let speedGrid = '';
+    [0, 80, 160, 240].forEach(function (value) {
+      const y = top + ph - value / 240 * ph;
+      speedGrid += '<line x1="' + left + '" y1="' + y + '" x2="' + (w-right) + '" y2="' + y + '" stroke="#eaf0ed" stroke-dasharray="3 5"/><text x="' + (left-7) + '" y="' + (y+3) + '" text-anchor="end" font-size="9" fill="#91a09f">' + value + '</text>';
+    });
+    const speedSvg = speedPoints.length
+      ? '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="سرعة القراءة لكل مقطع حسب طريقة القراءة">' + speedGrid + speedPoints.join('') + '</svg>'
+      : '<div class="chart-empty">ستظهر هنا نتائج البروتوكول الجديد عند حفظ أزمنة قراءة المقاطع.</div>';
+
+    return '<section class="progress-panel"><div class="section-head"><div><h3>التقدم عبر الجلسات</h3><p>آخر ' + ordered.length + ' جلسات؛ عرض وصفي لا معيار تشخيصي.</p></div></div>' +
+      '<div class="progress-grid"><article class="progress-chart"><h4>فهم المقروء</h4><p>نسبة الإجابات الصحيحة لكل جلسة</p><div class="chart-wrap">' + comprehensionSvg + '</div></article>' +
+      '<article class="progress-chart"><h4>سرعة مقاطع القراءة</h4><p>كل نقطة تمثل مقطعًا واحدًا؛ الأخضر جهرية والأزرق صامتة.</p><div class="chart-wrap">' + speedSvg + '</div><p class="progress-disclaimer">قد تختلف النصوص والمهام بين الجلسات؛ لا تقارن السرعات إلا مع ثبات النص والطريقة وظروف الاختبار.</p></article></div></section>';
+  }
+
   viewStudentDetails(studentId) {
     var student = this.students.find(function (s) { return String(s.id) === String(studentId); });
     if (!student) return;
@@ -220,7 +281,7 @@ class DashboardModule {
       '</h2></div><span class="badge-info">الصف ' + this.escape(student.grade) + ' · ' + this.escape(student.classroom || '—') + '</span></div>';
     html += '<div class="student-info-box"><div class="info-item"><span class="label">العمر</span><span class="value">' + (student.age ? this.escape(student.age) + ' سنوات' : '—') +
       '</span></div><div class="info-item"><span class="label">عدد الجلسات</span><span class="value">' + sessions.length + '</span></div></div>';
-    html += '<div class="profile-notes"><strong>ملاحظات المعلم:</strong> ' + this.escape(student.notes || 'لا توجد ملاحظات مسجلة.') + '</div><h3>سجل الجلسات (' + sessions.length + ')</h3><div class="sessions-history-list">';
+    html += '<div class="profile-notes"><strong>ملاحظات المعلم:</strong> ' + this.escape(student.notes || 'لا توجد ملاحظات مسجلة.') + '</div>' + this.renderStudentProgress(sessions) + '<h3>سجل الجلسات (' + sessions.length + ')</h3><div class="sessions-history-list">';
     if (!sessions.length) html += '<p class="text-muted">لم يتم تسجيل أي جلسة لهذا الطالب بعد.</p>';
     sessions.forEach(function (s) {
       var gaze = s.hasValidGaze === true || (s.riskClassification && s.riskClassification.hasValidGaze === true);
