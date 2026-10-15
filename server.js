@@ -20,7 +20,7 @@ if (!fs.existsSync(DATA_DIR)) {
 
 const DB_FILE = path.join(DATA_DIR, 'database.json');
 
-// Initialize database with realistic seed data if not present
+// Initialize an empty local database if the file does not exist yet
 function initializeDatabase() {
   if (!fs.existsSync(DB_FILE)) {
     const seedData = { students: [], sessions: [] };
