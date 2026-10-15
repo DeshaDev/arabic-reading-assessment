@@ -416,6 +416,113 @@
     });
   };
 
+  proto.analyzeLocalAudioPauses = async function (blob) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!blob || !AudioContextClass) {
+      return {
+        method: 'local-rms-energy-v1', quality: 'insufficient',
+        note: 'تحليل الطاقة الصوتية غير متاح في هذا المتصفح.'
+      };
+    }
+    let context;
+    try {
+      context = new AudioContextClass();
+      const encoded = await blob.arrayBuffer();
+      const buffer = await context.decodeAudioData(encoded);
+      const sampleRate = buffer.sampleRate;
+      const frameSamples = Math.max(1, Math.round(sampleRate * 0.02));
+      const frameDurationSeconds = frameSamples / sampleRate;
+      const frameCount = Math.ceil(buffer.length / frameSamples);
+      const channelData = [];
+      for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+        channelData.push(buffer.getChannelData(channel));
+      }
+      const energies = new Array(frameCount);
+      let peakRms = 0;
+      for (let frame = 0; frame < frameCount; frame++) {
+        const start = frame * frameSamples;
+        const end = Math.min(buffer.length, start + frameSamples);
+        let sumSquares = 0;
+        let count = 0;
+        for (let channel = 0; channel < channelData.length; channel++) {
+          const samples = channelData[channel];
+          for (let sampleIndex = start; sampleIndex < end; sampleIndex++) {
+            const value = samples[sampleIndex] || 0;
+            sumSquares += value * value;
+            count++;
+          }
+        }
+        const rms = count ? Math.sqrt(sumSquares / count) : 0;
+        energies[frame] = rms;
+        peakRms = Math.max(peakRms, rms);
+      }
+      const threshold = Math.max(0.003, peakRms * 0.10);
+      const active = energies.map(value => value >= threshold);
+      // Bridge very short energy dips so a single consonant or breath does not split speech.
+      let cursor = 0;
+      while (cursor < active.length) {
+        if (active[cursor]) { cursor++; continue; }
+        const start = cursor;
+        while (cursor < active.length && !active[cursor]) cursor++;
+        const gapLength = cursor - start;
+        if (start > 0 && cursor < active.length && gapLength <= 4) {
+          for (let k = start; k < cursor; k++) active[k] = true;
+        }
+      }
+      const regions = [];
+      let regionStart = null;
+      for (let frame = 0; frame < active.length; frame++) {
+        if (active[frame] && regionStart === null) regionStart = frame;
+        if (!active[frame] && regionStart !== null) {
+          regions.push({ start: regionStart, end: frame });
+          regionStart = null;
+        }
+      }
+      if (regionStart !== null) regions.push({ start: regionStart, end: active.length });
+      const pauses = [];
+      for (let i = 1; i < regions.length; i++) {
+        const gapFrames = regions[i].start - regions[i - 1].end;
+        const durationMs = Math.round(gapFrames * frameDurationSeconds * 1000);
+        if (durationMs >= 280) {
+          pauses.push({
+            startSeconds: Math.round(regions[i - 1].end * frameDurationSeconds * 100) / 100,
+            endSeconds: Math.round(regions[i].start * frameDurationSeconds * 100) / 100,
+            durationMs: durationMs,
+            kind: durationMs >= 700 ? 'long-low-energy-gap' : 'low-energy-gap'
+          });
+        }
+      }
+      const activeFrames = active.filter(Boolean).length;
+      const voiceActivityRatioPercent = frameCount
+        ? Math.round(activeFrames / frameCount * 1000) / 10
+        : 0;
+      const quality = buffer.duration >= 2 && peakRms >= 0.006 && activeFrames >= 6
+        ? 'observed'
+        : 'insufficient';
+      return {
+        method: 'local-rms-energy-v1',
+        quality: quality,
+        durationSeconds: Math.round(buffer.duration * 100) / 100,
+        voiceActivityRatioPercent: voiceActivityRatioPercent,
+        pauseCount: pauses.length,
+        longPauseCount: pauses.filter(pause => pause.durationMs >= 700).length,
+        longestPauseMs: pauses.reduce((longest, pause) => Math.max(longest, pause.durationMs), 0),
+        pauses: pauses.slice(0, 40),
+        note: 'رصد محلي لفترات انخفاض الطاقة الصوتية داخل التسجيل؛ قد تتأثر بالضجيج والهمس ولا تمثل بالضرورة ترددًا أو خطأ قراءة.'
+      };
+    } catch (error) {
+      return {
+        method: 'local-rms-energy-v1',
+        quality: 'insufficient',
+        note: 'تعذر فك التسجيل لتحليل الطاقة محليًا؛ لم يُرسل الصوت إلى أي خدمة لهذا الفحص.'
+      };
+    } finally {
+      if (context && typeof context.close === 'function') {
+        try { await context.close(); } catch (_) {}
+      }
+    }
+  };
+
   proto.finishReadingSegment = async function () {
     if (!this.segmentActive) return;
     this.segmentActive = false;
@@ -424,6 +531,15 @@
     const durationSeconds = Math.max(0, Math.round((performance.now() - this.segmentStartedAt) / 10) / 100);
     const index = this.activePassageIndex;
     const audio = await this.stopAudioCapture(index);
+    let acousticAnalysis = null;
+    if (audio && audio.blob && this.currentReadingMode === 'oral') {
+      const status = document.getElementById('audio-recording-status');
+      if (status) status.textContent = 'يجري تحليل انخفاض الطاقة الصوتية داخل المتصفح؛ لا يُرفع التسجيل لهذا الفحص المحلي…';
+      acousticAnalysis = await this.analyzeLocalAudioPauses(audio.blob);
+      if (status) status.textContent = acousticAnalysis.quality === 'observed'
+        ? 'اكتمل الفحص الصوتي المحلي. فترات الصمت المحتملة ليست وحدها دليلًا على التردد.'
+        : 'تعذر حساب فترات الهدوء محليًا؛ يمكن متابعة الجلسة دون هذا المؤشر.';
+    }
     const numberFrom = id => Math.max(0, Math.min(200, Number(document.getElementById(id)?.value) || 0));
     const samples = this.currentSegmentSamples.slice();
     const gazeMetrics = this.metricsEngine.processGazeStream(samples);
@@ -441,6 +557,7 @@
       durationSeconds: durationSeconds,
       wordCount: wordCount,
       wordGaze: wordGaze,
+      acousticAnalysis: acousticAnalysis,
       baselineErrors: numberFrom('segment-errors'),
       baselineOmissions: numberFrom('segment-omissions'),
       baselineSelfCorrections: numberFrom('segment-corrections'),
@@ -638,6 +755,7 @@
       omissions: segment.omissions, selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze,
       wordMarks: (segment.wordMarks || []).slice(0, 500).map(mark => ({ wordIndex: mark.wordIndex, type: mark.type })),
       wordGaze: segment.wordGaze,
+      acousticAnalysis: segment.acousticAnalysis,
       metrics: {
         totalFixations: segment.metrics.totalFixations, avgFixationDurationMs: segment.metrics.avgFixationDurationMs,
         forwardSaccadesCount: segment.metrics.forwardSaccadesCount, regressionsCount: segment.metrics.regressionsCount,
@@ -678,7 +796,8 @@
       passageId: segment.passageId, passageTitle: segment.passageTitle, content: segment.content, mode: segment.mode,
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors, omissions: segment.omissions,
       selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze, metrics: segment.metrics,
-      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, wordGaze: segment.wordGaze, audioUrl: segment.audioUrl, index: index
+      viewportWidth: segment.viewportWidth, viewportHeight: segment.viewportHeight, wordGaze: segment.wordGaze,
+      acousticAnalysis: segment.acousticAnalysis, audioUrl: segment.audioUrl, index: index
     }));
     payload.metrics = combinedMetrics;
     payload.riskClassification = risk;
