@@ -85,11 +85,23 @@ class AppRouter {
     const container = document.getElementById('main-view-container');
     const students = this.dashboardModule.students;
 
+    if (!students.length) {
+      container.innerHTML = `
+        <section class="empty-state panel fade-in">
+          <div class="empty-illustration">＋</div>
+          <h3>أضف سجلًا قبل بدء الجلسة</h3>
+          <p>لا توجد سجلات طلاب بعد. يمكنك إنشاء سجل تجريبي أو استخدام رمز داخلي بدل اسم حقيقي في هذه النسخة المحلية.</p>
+          <button class="btn btn-primary" onclick="window.dashboardModule.openNewStudentModal()">إضافة سجل طالب</button>
+          <button class="btn btn-outline" style="margin-top:8px" onclick="window.appRouter.navigate('dashboard')">العودة إلى النظرة العامة</button>
+        </section>`;
+      return;
+    }
+
     container.innerHTML = `
       <div class="assessment-setup-page fade-in" id="assessment-container">
         <div class="setup-card">
           <h2>🎯 بدء جلسة فحص قراءة جديدة</h2>
-          <p>اختر الطالب والنص المعياري المناسب لبدء المعايرة وتتبع حركة العين.</p>
+          <p>اختر الطالب والنص القرائي لتسجيل ملاحظات الجلسة.</p>
 
           <div class="form-group">
             <label>اختر الطالب من القائمة:</label>
@@ -106,9 +118,9 @@ class AppRouter {
           </div>
 
           <div class="setup-instructions">
-            <h4>💡 نصائح لضمان دقة الفرز بنسبة 100%:</h4>
+            <h4>💡 إرشادات لتحسين ظروف الجلسة:</h4>
             <ul>
-              <li>تأكد من جلوس الطفل على بعد 50–60 سم من الكاميرا ومواجهة الشاشة مباشرة.</li>
+              <li>ضع الكاميرا مقابل القارئ وثبّت الشاشة قدر الإمكان؛ لا تمثل هذه الإرشادات ضمانًا للدقة.</li>
               <li>تأكد من عدم وجود مصدر إضاءة قوي خلف رأس الطفل مباشرة (مثل نافذة مفتوحة).</li>
               <li>شجع الطفل على قراءة النص بصمت أو همس دون تحريك رأسه.</li>
             </ul>
@@ -162,7 +174,7 @@ class AppRouter {
         <div class="dashboard-header">
           <div>
             <h1>بنك النصوص العربية المعيارية</h1>
-            <p>نصوص متدرجة ومضبوطة لغوياً من الصف الأول إلى السادس لمسح طلاقة القراءة وعسر القراءة</p>
+            <p>نصوص تجريبية متدرجة في التشكيل والطول للصفوف الأول إلى السادس.</p>
           </div>
         </div>
 
@@ -181,7 +193,7 @@ class AppRouter {
 
               <div class="text-meta-footer">
                 <span>📝 ${t.wordsCount} كلمة</span>
-                <span>⏱️ المعيار: ${t.targetWpmMin}-${t.targetWpmMax} ك/د</span>
+                <span>📖 نص تجريبي للصف ${t.grade}</span>
                 <span>❓ ${t.comprehensionQuestions.length} أسئلة استيعاب</span>
               </div>
             </div>
