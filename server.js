@@ -56,7 +56,7 @@ app.get('/api/health', (req, res) => {
     wordLevelGazeSummaryEnabled: true,
     independentCalibrationValidationEnabled: true,
     transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
-    wordTimestampAnalysisEnabled: process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
+    wordTimestampAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY) && process.env.OPENAI_ENABLE_WORD_TIMESTAMPS !== 'false',
     wordTimestampModel: process.env.OPENAI_WORD_TIMESTAMP_MODEL || 'whisper-1',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
