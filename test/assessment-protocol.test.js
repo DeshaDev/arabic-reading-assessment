@@ -36,3 +36,14 @@ test('summarizes two passages using combined reading time and word counts', () =
   assert.equal(summary.omissions, 1);
   assert.equal(summary.selfCorrections, 3);
 });
+
+test('does not combine oral and silent reading speeds into one overall measure', () => {
+  const summary = summarizeReadingSegments([
+    { mode: 'oral', durationSeconds: 30, wordCount: 45 },
+    { mode: 'silent', durationSeconds: 60, wordCount: 75 }
+  ]);
+  assert.equal(summary.comparableMode, false);
+  assert.equal(summary.wpm, null);
+  assert.equal(summary.wordCount, 120);
+  assert.equal(summary.durationSeconds, 90);
+});
