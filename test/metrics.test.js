@@ -56,3 +56,10 @@ test('uses observed timestamps instead of assuming a 30fps camera rate', () => {
   ]);
   assert.equal(fixation.durationMs, 40);
 });
+
+test('marks combined pace insufficient when reading modes cannot be compared', () => {
+  const result = new EyeMetricsEngine().classifyRisk(3, 90, 120, {}, 5, 6, false);
+  assert.equal(result.wpm, null);
+  assert.equal(result.level, 'insufficient');
+  assert.match(result.reasons.join(' '), /طريقتين مختلفتين/);
+});
