@@ -39,6 +39,26 @@ class AppRouter {
   }
 
   navigate(viewName) {
+    const previousView = this.currentView;
+    if (previousView === 'assessment' && viewName !== 'assessment') {
+      const manager = this.assessmentManager;
+      if (manager.readingTimer) clearInterval(manager.readingTimer);
+      if (manager.ranTimer) clearInterval(manager.ranTimer);
+      manager.segmentActive = false;
+      if (manager.activeRecorder && manager.activeRecorder.state === 'recording') {
+        try { manager.activeRecorder.stop(); } catch (_) {}
+      }
+      if (manager.activeAudioStream) {
+        manager.activeAudioStream.getTracks().forEach(track => track.stop());
+        manager.activeAudioStream = null;
+      }
+      Object.values(manager.audioRecords || {}).forEach(record => {
+        if (record && record.url) URL.revokeObjectURL(record.url);
+      });
+      manager.audioRecords = {};
+      this.tracker.onGazePoint = null;
+      this.tracker.shutdown();
+    }
     this.currentView = viewName;
 
     const sectionNames = { dashboard: 'نظرة عامة', assessment: 'جلسة تقييم جديدة', texts: 'مكتبة النصوص', intervention: 'أنشطة الدعم القرائي' };
