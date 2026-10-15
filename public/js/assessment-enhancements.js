@@ -253,7 +253,7 @@
       return;
     }
     const validation = this.calibrationValidation || {};
-    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت إشارة النظر التحقق التقني الأولي</h2><p>الخطأ الوسيط المقدر في نقاط التحقق المستقلة: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + '. سيجري الآن ربط عينات النظر بالكلمات الظاهرة أثناء القراءة.</p><p class="text-muted">هذا فحص جودة داخلي وليس قياس دقة معتمدًا؛ تظل البيانات وصفية وتتأثر بالكاميرا والإضاءة وحركة الرأس.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startReading('oral', 0)">ابدأ القراءة مع تتبع النظر</button></div></div>';
+    container.innerHTML = '<div class="assessment-card fade-in text-center"><div class="success-icon" style="font-size:48px;margin-bottom:14px">✓</div><h2>اجتازت إشارة النظر التحقق التقني الأولي</h2><p>الخطأ الوسيط المقدر في نقاط التحقق المستقلة: ' + (validation.medianErrorPx == null ? 'غير متاح' : validation.medianErrorPx + ' بكسل') + '. سيجري الآن ربط عينات النظر بالكلمات الظاهرة أثناء القراءة.</p><p class="text-muted">هذا فحص جودة داخلي وليس قياس دقة معتمدًا؛ تظل البيانات وصفية وتتأثر بالكاميرا والإضاءة وحركة الرأس.</p><div class="actions"><button class="btn btn-primary btn-lg" onclick="window.assessmentManager.startReading(&quot;oral&quot;, 0)">ابدأ القراءة مع تتبع النظر</button></div></div>';
     const indicator = document.getElementById('ind-calibration');
     if (indicator) indicator.innerHTML = '<span class="dot"></span>إشارة النظر: اجتازت تحققًا تقنيًا أوليًا';
   };
