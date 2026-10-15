@@ -31,6 +31,21 @@
     return sequence;
   }
 
+  const WORD_MARK_TYPES = ['substitution', 'omission', 'hesitation', 'selfCorrection'];
+
+  function summarizeWordMarks(marks) {
+    const result = { total: 0, substitution: 0, omission: 0, hesitation: 0, selfCorrection: 0 };
+    const seen = new Set();
+    (Array.isArray(marks) ? marks : []).forEach(function (mark) {
+      if (!mark || !Number.isInteger(Number(mark.wordIndex)) || Number(mark.wordIndex) < 0 ||
+          !WORD_MARK_TYPES.includes(mark.type) || seen.has(Number(mark.wordIndex))) return;
+      seen.add(Number(mark.wordIndex));
+      result[mark.type] += 1;
+      result.total += 1;
+    });
+    return result;
+  }
+
   function summarizeReadingSegments(segments) {
     const safe = Array.isArray(segments) ? segments : [];
     const valid = safe.filter(function (segment) {
@@ -67,7 +82,7 @@
     };
   }
 
-  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments };
+  const api = { countArabicWords, calculateObservedWpm, createRapidNamingSequence, summarizeReadingSegments, summarizeWordMarks, WORD_MARK_TYPES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (root) root.ReadingAssessmentProtocol = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
