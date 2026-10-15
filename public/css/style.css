@@ -1042,3 +1042,61 @@ a { color: inherit; }
   .acoustic-stats { grid-template-columns: 1fr; }
   .acoustic-pause-list li { align-items: flex-start; }
 }
+
+
+/* Per-word gaze dwell visualization for Arabic reading passages */
+.reading-gaze-wordmap {
+  margin: 12px 0 4px;
+  padding: 12px;
+  border: 1px solid #e1e9e4;
+  border-radius: 10px;
+  background: #fff;
+}
+.reading-gaze-wordmap > strong { display: block; font-size: 10px; margin-bottom: 8px; }
+.reading-gaze-wordmap-text {
+  padding: 11px 12px;
+  border-radius: 8px;
+  background: #fbfcfa;
+  color: var(--ink);
+  font-family: var(--font-ar);
+  font-size: 17px;
+  line-height: 2.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reading-gaze-wordmap-text span {
+  display: inline;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  border-radius: 4px;
+  padding: 1px 2px;
+}
+.gaze-heat-unseen { background: transparent; border-bottom: 1px dashed #cbd5cf; }
+.gaze-heat-low { background: rgba(105, 174, 139, .18); }
+.gaze-heat-medium { background: rgba(234, 187, 79, .38); }
+.gaze-heat-high { background: rgba(220, 105, 82, .40); }
+.reading-gaze-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+.reading-gaze-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--ink-soft);
+}
+.heat-key {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(45,65,55,.12);
+}
+.heat-unseen { background: #fff; border-style: dashed; }
+.heat-low { background: rgba(105, 174, 139, .38); }
+.heat-medium { background: rgba(234, 187, 79, .62); }
+.heat-high { background: rgba(220, 105, 82, .67); }
+.reading-gaze-wordmap .text-muted { margin-top: 8px; font-size: 9px; line-height: 1.85; }
