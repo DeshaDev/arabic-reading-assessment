@@ -53,7 +53,7 @@ app.get('/api/health', (req, res) => {
     version: '1.2.0',
     mode: 'prototype',
     automaticSpeechAnalysisEnabled: Boolean(process.env.OPENAI_API_KEY),
-    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+    transcriptionModel: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe',
     privacyNotice: 'Do not use identifiable student data in a publicly exposed deployment.'
   });
 });
@@ -310,7 +310,7 @@ app.post('/api/analyze-reading', audioBodyParser, async (req, res) => {
     'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/flac': 'flac',
     'audio/x-m4a': 'm4a', 'audio/m4a': 'm4a'
   };
-  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe';
+  const model = process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-transcribe';
 
   try {
     const form = new FormData();
