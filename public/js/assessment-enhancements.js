@@ -461,6 +461,7 @@
       passageId: segment.passageId, passageTitle: segment.passageTitle, mode: segment.mode,
       durationSeconds: segment.durationSeconds, wordCount: segment.wordCount, errors: segment.errors,
       omissions: segment.omissions, selfCorrections: segment.selfCorrections, hasValidGaze: segment.hasValidGaze,
+      wordMarks: (segment.wordMarks || []).slice(0, 500).map(mark => ({ wordIndex: mark.wordIndex, type: mark.type })),
       metrics: {
         totalFixations: segment.metrics.totalFixations, avgFixationDurationMs: segment.metrics.avgFixationDurationMs,
         forwardSaccadesCount: segment.metrics.forwardSaccadesCount, regressionsCount: segment.metrics.regressionsCount,
